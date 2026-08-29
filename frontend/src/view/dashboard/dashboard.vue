@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { authService } from '../../services/api';
 
@@ -7,28 +7,10 @@ import Sidebar from '../../components/layout/sidebar.vue';
 import Header from '../../components/layout/header.vue';
 import Footer from '../../components/layout/footer.vue';
 
-// Dynamic Content Views
-import DashboardView from './dash-index.vue';
-import RencanaView from './rencana-index.vue';
-import TransaksiView from './transaksi-index.vue';
-import TamuView from './tamu-index.vue';
-import AkunView from './akun-index.vue';
-
 const router = useRouter();
 const user = authService.getUser() || { name: 'Pengantin' };
 
-const activeTab = ref('dashboard'); // State menu aktif
 const isSidebarOpen = ref(false); // State mobile sidebar (buka/tutup)
-
-const currentComponent = computed(() => {
-  switch (activeTab.value) {
-    case 'rencana': return RencanaView;
-    case 'transaksi': return TransaksiView;
-    case 'tamu': return TamuView;
-    case 'akun': return AkunView;
-    default: return DashboardView;
-  }
-});
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -57,9 +39,7 @@ const handleLogout = () => {
 
     <!-- EMBED SIDEBAR -->
     <Sidebar 
-      :active-menu="activeTab" 
       :is-open="isSidebarOpen"
-      @select-menu="(menu) => activeTab = menu" 
       @close-sidebar="closeSidebar"
     />
 
@@ -72,11 +52,13 @@ const handleLogout = () => {
         @toggle-sidebar="toggleSidebar"
       />
 
-      <!-- EMBED DYNAMIC CONTENT -->
+      <!-- EMBED DYNAMIC CONTENT (ROUTER VIEW) -->
       <main class="p-3 p-md-4 flex-grow-1">
-        <transition name="fade" mode="out-in">
-          <component :is="currentComponent" />
-        </transition>
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </main>
 
       <!-- EMBED FOOTER -->

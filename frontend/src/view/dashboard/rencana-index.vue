@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { rencanaService, RencanaItem } from '../../services/api';
 
-const checklist = ref([
-  { id: 1, tugas: 'Menentukan tanggal & konsep pernikahan', selesai: true, batas: 'H-6 Bulan' },
-  { id: 2, tugas: 'Survey & booking tempat akad / resepsi', selesai: true, batas: 'H-5 Bulan' },
-  { id: 3, tugas: 'Menyiapkan berkas KUA / Catatan Sipil', selesai: true, batas: 'H-3 Bulan' },
-  { id: 4, tugas: 'Memilih & sewa baju pengantin serta MUA', selesai: true, batas: 'H-2 Bulan' },
-  { id: 5, tugas: 'Pesan katering / konsumsi keluarga', selesai: false, batas: 'H-1 Bulan' },
-  { id: 6, tugas: 'Membuat draft daftar tamu undangan', selesai: false, batas: 'H-3 Minggu' },
-  { id: 7, tugas: 'Beli cincin pernikahan & mahar/seserahan', selesai: false, batas: 'H-2 Minggu' },
-  { id: 8, tugas: 'Gladi resik susunan acara bersama keluarga', selesai: false, batas: 'H-3 Hari' },
-]);
+const checklist = ref<RencanaItem[]>([]);
+const isLoading = ref(true);
 
-const toggle = (item: any) => {
-  item.selesai = !item.selesai;
+const fetchRencana = async () => {
+  isLoading.value = true;
+  try {
+    const data = await rencanaService.getRencana();
+    checklist.value = data;
+  } catch (error) {
+    console.error('Gagal memuat data rencana:', error);
+  } finally {
+    isLoading.value = false;
+  }
 };
+
+const toggle = (item: RencanaItem) => {
+  item.status = item.status === 'selesai' ? 'pending' : 'selesai';
+};
+
+onMounted(() => {
+  fetchRencana();
+});
 </script>
 
 <template>
@@ -31,7 +40,20 @@ const toggle = (item: any) => {
       </button>
     </div>
 
-    <div class="list-group list-group-flush">
+    <!-- Loading State -->
+    <div v-if="isLoading" class="text-center py-5 text-muted">
+      <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+      <p class="small mb-0">Memuat data rencana...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else-if="checklist.length === 0" class="text-center py-5 text-muted">
+      <i class="bi bi-clipboard-x fs-1 d-block mb-2 text-secondary"></i>
+      <p class="mb-0 fw-medium">Belum ada rencana yang tersimpan.</p>
+    </div>
+
+    <!-- Checklist List -->
+    <div v-else class="list-group list-group-flush">
       <div 
         v-for="item in checklist" 
         :key="item.id" 
@@ -42,25 +64,27 @@ const toggle = (item: any) => {
             type="checkbox" 
             class="form-check-input mt-0 fs-5 cursor-pointer" 
             :id="'chk-' + item.id" 
-            :checked="item.selesai"
+            :checked="item.status === 'selesai'"
             @change="toggle(item)"
           />
           <div>
             <label 
               :for="'chk-' + item.id" 
               class="form-check-label cursor-pointer mb-0"
-              :class="{ 'text-decoration-line-through text-muted': item.selesai, 'fw-medium text-dark': !item.selesai }"
+              :class="{ 'text-decoration-line-through text-muted': item.status === 'selesai', 'fw-medium text-dark': item.status !== 'selesai' }"
             >
-              {{ item.tugas }}
+              {{ item.TugasRencana }}
             </label>
-            <small class="d-block text-muted" style="font-size: 0.75rem;">Target: {{ item.batas }}</small>
+            <small class="d-block text-muted" style="font-size: 0.75rem;">
+              Target: {{ item.tgl_deadline || '-' }}
+            </small>
           </div>
         </div>
         <span 
-          class="badge rounded-pill"
-          :class="item.selesai ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+          class="badge rounded-pill text-capitalize"
+          :class="item.status === 'selesai' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
         >
-          {{ item.selesai ? 'Selesai' : 'Pending' }}
+          {{ item.status }}
         </span>
       </div>
     </div>

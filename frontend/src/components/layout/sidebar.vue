@@ -1,23 +1,20 @@
 <script setup lang="ts">
-const props = defineProps<{
-    activeMenu?: string;
+import { useRoute } from 'vue-router';
+
+defineProps<{
     isOpen?: boolean;
 }>();
 
-const emit = defineEmits(['selectMenu', 'closeSidebar']);
+const emit = defineEmits(['closeSidebar']);
+const route = useRoute();
 
 const menus = [
-    { key: 'dashboard', label: 'Dashboard', icon: 'bi bi-grid-1x2-fill' },
-    { key: 'rencana', label: 'Rencana', icon: 'bi bi-calendar2-check-fill' },
-    { key: 'transaksi', label: 'Transaksi', icon: 'bi bi-wallet2' },
-    { key: 'tamu', label: 'Tamu Undangan', icon: 'bi bi-people-fill' },
-    { key: 'akun', label: 'Akun', icon: 'bi bi-person-circle' },
+    { key: 'dashboard', name: 'dashboard', label: 'Dashboard', icon: 'bi bi-grid-1x2-fill' },
+    { key: 'rencana', name: 'rencana', label: 'Rencana', icon: 'bi bi-calendar2-check-fill' },
+    { key: 'transaksi', name: 'transaksi', label: 'Transaksi', icon: 'bi bi-wallet2' },
+    { key: 'tamu', name: 'tamu', label: 'Tamu Undangan', icon: 'bi bi-people-fill' },
+    { key: 'akun', name: 'akun', label: 'Akun', icon: 'bi bi-person-circle' },
 ];
-
-const handleSelect = (key: string) => {
-    emit('selectMenu', key);
-    emit('closeSidebar');
-};
 </script>
 
 <template>
@@ -51,15 +48,15 @@ const handleSelect = (key: string) => {
         <div class="p-3 flex-grow-1 overflow-y-auto">
             <ul class="nav flex-column gap-2">
                 <li v-for="item in menus" :key="item.key" class="nav-item">
-                    <button 
-                        type="button"
-                        @click="handleSelect(item.key)" 
-                        class="btn w-100 text-start rounded-3 py-2 px-3 d-flex align-items-center gap-2 transition-all"
-                        :class="activeMenu === item.key ? 'btn-primary text-white shadow-sm' : 'btn-light text-dark bg-transparent border-0 hover-nav'"
+                    <router-link 
+                        :to="{ name: item.name }"
+                        @click="emit('closeSidebar')" 
+                        class="btn w-100 text-start rounded-3 py-2 px-3 d-flex align-items-center gap-2 transition-all text-decoration-none"
+                        :class="route.name === item.name ? 'btn-primary text-white shadow-sm' : 'btn-light text-dark bg-transparent border-0 hover-nav'"
                     >
                         <i :class="item.icon" class="fs-5"></i>
                         <span class="fw-medium">{{ item.label }}</span>
-                    </button>
+                    </router-link>
                 </li>
             </ul>
         </div>

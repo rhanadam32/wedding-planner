@@ -9,9 +9,35 @@ const routes: RouteRecordRaw[] = [
     },
     {
         path: '/dashboard',
-        name: 'dashboard',
         component: () => import('../view/dashboard/dashboard.vue'),
-        meta: { requiresAuth: true }
+        meta: { requiresAuth: true },
+        children: [
+            {
+                path: '',
+                name: 'dashboard',
+                component: () => import('../view/dashboard/dash-index.vue')
+            },
+            {
+                path: 'rencana',
+                name: 'rencana',
+                component: () => import('../view/dashboard/rencana-index.vue')
+            },
+            {
+                path: 'transaksi',
+                name: 'transaksi',
+                component: () => import('../view/dashboard/transaksi-index.vue')
+            },
+            {
+                path: 'tamu',
+                name: 'tamu',
+                component: () => import('../view/dashboard/tamu-index.vue')
+            },
+            {
+                path: 'akun',
+                name: 'akun',
+                component: () => import('../view/dashboard/akun-index.vue')
+            }
+        ]
     }
 ]
 
@@ -20,17 +46,16 @@ const router = createRouter({
     routes,
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
     const isAuth = authService.isAuthenticated();
 
-    if (to.meta.requiresAuth && !isAuth) {
+    if (to.matched.some(record => record.meta.requiresAuth) && !isAuth) {
         next({ name: 'home' });
-    } else if (!to.meta.requiresAuth && isAuth) {
+    } else if (to.name === 'home' && isAuth) {
         next({ name: 'dashboard' });
     } else {
         next();
     }
-
 })
 
 export default router
