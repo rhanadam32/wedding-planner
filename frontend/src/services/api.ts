@@ -5,6 +5,12 @@ const Api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || '',
 });
 
+export interface ApiResponse<T = any> {
+    status: 'success' | 'error';
+    message?: string;
+    data?: T;
+}
+
 export const authService = {
     async login(credentials: { username: string; password: string }) {
         const response = await Api.post('', JSON.stringify({
@@ -91,6 +97,62 @@ export const rencanaService = {
             id: id
         }), {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        return response.data;
+    }
+};
+
+const jsonPlainHeaders = {
+    'Content-Type': 'text/plain;charset=utf-8'
+};
+
+export interface Transaksi {
+    id_transaksi?: string;
+    tanggal: string;
+    Keterangan: string;
+    Kategori: string;
+    Kredit_Debit: number | string;
+}
+
+export const transaksiService = {
+    async getTransaksi(): Promise<Transaksi[]> {
+        const response = await Api.post('', JSON.stringify({
+            action: 'getTransaksi'
+        }), {
+            headers: jsonPlainHeaders
+        });
+        if (response.data.status === 'success') {
+            return response.data.data ?? [];
+        }
+        return [];
+    },
+
+    async addTransaksi(payload: Omit<Transaksi, 'id_transaksi'>) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'addTransaksi',
+            ...payload
+        }), {
+            headers: jsonPlainHeaders
+        });
+        return response.data;
+    },
+
+    async updateTransaksi(payload: Partial<Transaksi> & { id_transaksi: string }) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'updateTransaksi',
+            ...payload
+        }), {
+            headers: jsonPlainHeaders
+        });
+        return response.data;
+    },
+
+    async deleteTransaksi(id_transaksi: string) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'deleteTransaksi',
+            id_transaksi
+        }), {
+            headers: jsonPlainHeaders
         });
         return response.data;
     }

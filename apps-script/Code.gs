@@ -1,0 +1,226 @@
+// ==========================================
+// 1. ENTRY POINT WAJIB GOOGLE APPS SCRIPT
+// ==========================================
+function doGet(e) {
+  try {
+    return doGetRencana(e);
+  } catch (err) {
+    return responseJSON({ status: 'error', message: err.toString() });
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (body.action === 'login') {
+      return handleLogin(body, ss);
+    }
+
+    if (isTransaksiAction(body.action)) {
+      return doPostTransaksi(body, ss);
+    }
+
+    return doPostRencana(body, ss);
+  } catch (err) {
+    return responseJSON({ status: 'error', message: err.toString() });
+  }
+}
+
+function isTransaksiAction(action) {
+  return action === 'getTransaksi' ||
+    action === 'addTransaksi' ||
+    action === 'updateTransaksi' ||
+    action === 'deleteTransaksi';
+}
+
+// ==========================================
+// 2. FUNGSI KHUSUS RENCANA (Helper)
+// ==========================================
+function doGetRencana(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Rencana');
+
+  if (!sheet) return responseJSON({ status: 'error', message: 'Sheet Rencana tidak ditemukan' });
+
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
+
+  const headers = rows[0]; // ['id', 'TugasRencana', 'tgl_deadline', 'status']
+  const data = rows.slice(1).map(row => {
+    let obj = {};
+    headers.forEach((h, idx) => {
+      if (h === 'tgl_deadline' && row[idx] instanceof Date) {
+        obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        obj[h] = row[idx];
+      }
+    });
+    return obj;
+  });
+
+  return responseJSON({ status: 'success', data: data });
+}
+
+function doPostRencana(body, ss) {
+  const sheet = ss.getSheetByName('Rencana');
+  const action = body.action;
+
+  if (action === 'addRencana') {
+    const newId = new Date().getTime().toString();
+    sheet.appendRow([newId, body.TugasRencana, body.tgl_deadline || '', 'pending']);
+    return responseJSON({
+      status: 'success',
+      message: 'Rencana berhasil ditambahkan',
+      data: { id: newId, TugasRencana: body.TugasRencana, tgl_deadline: body.tgl_deadline, status: 'pending' }
+    });
+  }
+
+  if (action === 'updateStatusRencana') {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString() === body.id.toString()) {
+        sheet.getRange(i + 1, 4).setValue(body.status);
+        return responseJSON({ status: 'success', message: 'Status rencana berhasil diupdate' });
+      }
+    }
+    return responseJSON({ status: 'error', message: 'Tugas rencana tidak ditemukan' });
+  }
+
+  if (action === 'deleteRencana') {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString() === body.id.toString()) {
+        sheet.deleteRow(i + 1);
+        return responseJSON({ status: 'success', message: 'Tugas rencana berhasil dihapus' });
+      }
+    }
+    return responseJSON({ status: 'error', message: 'Tugas rencana tidak ditemukan' });
+  }
+
+  return responseJSON({ status: 'error', message: 'Action tidak dikenal di modul Rencana' });
+}
+
+// ==========================================
+// 3. FUNGSI KHUSUS TRANSAKSI (Helper)
+// Sheet: Transaksi
+// Header: id_transaksi | tanggal | Keterangan | Kategori | Kredit_Debit
+// ==========================================
+function rowsToTransaksi(rows) {
+  const headers = rows[0];
+  return rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      if (h === 'tanggal' && row[idx] instanceof Date) {
+        obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        obj[h] = row[idx];
+      }
+    });
+    return obj;
+  });
+}
+
+function doPostTransaksi(body, ss) {
+  const sheet = ss.getSheetByName('Transaksi');
+  if (!sheet) {
+    return responseJSON({ status: 'error', message: 'Sheet Transaksi tidak ditemukan' });
+  }
+
+  const action = body.action;
+
+  if (action === 'getTransaksi') {
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
+    return responseJSON({ status: 'success', data: rowsToTransaksi(rows) });
+  }
+
+  if (action === 'addTransaksi') {
+    const newId = new Date().getTime().toString();
+    const tanggal = body.tanggal || '';
+    const Keterangan = body.Keterangan || '';
+    const Kategori = body.Kategori || '';
+    const Kredit_Debit = body.Kredit_Debit !== undefined && body.Kredit_Debit !== null
+      ? body.Kredit_Debit
+      : '';
+
+    sheet.appendRow([newId, tanggal, Keterangan, Kategori, Kredit_Debit]);
+    return responseJSON({
+      status: 'success',
+      message: 'Transaksi berhasil ditambahkan',
+      data: {
+        id_transaksi: newId,
+        tanggal: tanggal,
+        Keterangan: Keterangan,
+        Kategori: Kategori,
+        Kredit_Debit: Kredit_Debit
+      }
+    });
+  }
+
+  if (action === 'updateTransaksi') {
+    if (!body.id_transaksi) {
+      return responseJSON({ status: 'error', message: 'id_transaksi wajib diisi' });
+    }
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString() === body.id_transaksi.toString()) {
+        const rowIndex = i + 1;
+        if (body.tanggal !== undefined) sheet.getRange(rowIndex, 2).setValue(body.tanggal);
+        if (body.Keterangan !== undefined) sheet.getRange(rowIndex, 3).setValue(body.Keterangan);
+        if (body.Kategori !== undefined) sheet.getRange(rowIndex, 4).setValue(body.Kategori);
+        if (body.Kredit_Debit !== undefined) sheet.getRange(rowIndex, 5).setValue(body.Kredit_Debit);
+        return responseJSON({ status: 'success', message: 'Transaksi berhasil diupdate' });
+      }
+    }
+    return responseJSON({ status: 'error', message: 'Transaksi tidak ditemukan' });
+  }
+
+  if (action === 'deleteTransaksi') {
+    if (!body.id_transaksi) {
+      return responseJSON({ status: 'error', message: 'id_transaksi wajib diisi' });
+    }
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString() === body.id_transaksi.toString()) {
+        sheet.deleteRow(i + 1);
+        return responseJSON({ status: 'success', message: 'Transaksi berhasil dihapus' });
+      }
+    }
+    return responseJSON({ status: 'error', message: 'Transaksi tidak ditemukan' });
+  }
+
+  return responseJSON({ status: 'error', message: 'Action tidak dikenal di modul Transaksi' });
+}
+
+// ==========================================
+// 4. FUNGSI KHUSUS LOGIN
+// ==========================================
+function handleLogin(body, ss) {
+  const sheetUsers = ss.getSheetByName('Users');
+  const rows = sheetUsers.getDataRange().getValues();
+  const headers = rows[0];
+
+  for (let i = 1; i < rows.length; i++) {
+    const user = {};
+    headers.forEach((h, idx) => user[h] = rows[i][idx]);
+
+    if (user.username.toString() === (body.username || '').toString().trim() &&
+        user.password.toString() === (body.password || '').toString().trim()) {
+      return responseJSON({
+        status: 'success',
+        token: Utilities.base64Encode(user.username + ':' + new Date().getTime()),
+        user: { name: user.name, role: user.role, username: user.username }
+      });
+    }
+  }
+  return responseJSON({ status: 'error', message: 'Username atau Password salah!' });
+}
+
+function responseJSON(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}

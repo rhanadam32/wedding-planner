@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { authService } from '../../services/api';
+import { ref, onMounted } from 'vue';
+import { authService, transaksiService, Transaksi } from '../../services/api';
 
 const user = authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin' };
 
@@ -30,12 +30,32 @@ const toggleCheck = (item: any) => {
   item.done = !item.done;
 };
 
-const transaksiTerakhir = ref([
-  { item: 'DP Lokasi / Gedung', biaya: 'Rp 15.000.000', status: 'Lunas' },
-  { item: 'DP Katering Makanan', biaya: 'Rp 12.000.000', status: 'DP' },
-  { item: 'Sewa Busana & MUA', biaya: 'Rp 6.000.000', status: 'Lunas' },
-  { item: 'Foto & Video Cinematic', biaya: 'Rp 4.500.000', status: 'DP' },
-]);
+const transaksiTerakhir = ref<Transaksi[]>([]);
+
+const formatRupiah = (value: number | string) => {
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value || '-');
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0
+  }).format(n);
+};
+
+onMounted(async () => {
+  try {
+    const data = await transaksiService.getTransaksi();
+    transaksiTerakhir.value = [...data].slice(-4).reverse();
+    const total = data.reduce((sum, item) => sum + (Number(item.Kredit_Debit) || 0), 0);
+    ringkasan.value[2] = {
+      ...ringkasan.value[2],
+      nilai: formatRupiah(total),
+      subtext: `${data.length} transaksi tercatat`
+    };
+  } catch (error) {
+    console.error('Gagal memuat transaksi dashboard:', error);
+  }
+});
 </script>
 
 <template>
@@ -139,23 +159,22 @@ const transaksiTerakhir = ref([
           </div>
 
           <div class="d-flex flex-column gap-2">
+            <div v-if="transaksiTerakhir.length === 0" class="text-muted small py-3">
+              Belum ada transaksi tercatat.
+            </div>
             <div 
-              v-for="(trx, idx) in transaksiTerakhir" 
-              :key="idx" 
+              v-for="trx in transaksiTerakhir" 
+              :key="trx.id_transaksi"
               class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between"
             >
               <div>
-                <strong class="d-block text-dark small">{{ trx.item }}</strong>
-                <span 
-                  class="badge"
-                  :class="trx.status === 'Lunas' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
-                  style="font-size: 0.7rem;"
-                >
-                  {{ trx.status }}
+                <strong class="d-block text-dark small">{{ trx.Keterangan }}</strong>
+                <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">
+                  {{ trx.Kategori || '-' }}
                 </span>
               </div>
               <div class="text-end">
-                <span class="fw-bold text-dark small">{{ trx.biaya }}</span>
+                <span class="fw-bold text-dark small">{{ formatRupiah(trx.Kredit_Debit) }}</span>
               </div>
             </div>
           </div>
