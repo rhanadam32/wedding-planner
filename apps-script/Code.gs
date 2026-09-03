@@ -22,6 +22,10 @@ function doPost(e) {
       return doPostTransaksi(body, ss);
     }
 
+    if (isTamuAction(body.action)) {
+      return doPostTamu(body, ss);
+    }
+
     return doPostRencana(body, ss);
   } catch (err) {
     return responseJSON({ status: 'error', message: err.toString() });
@@ -33,6 +37,13 @@ function isTransaksiAction(action) {
     action === 'addTransaksi' ||
     action === 'updateTransaksi' ||
     action === 'deleteTransaksi';
+}
+
+function isTamuAction(action){
+  return action === 'getTamu' ||
+  action === 'addTamu' ||
+  action === 'updateTamu' ||
+  action === 'deleteTamu'
 }
 
 // ==========================================
@@ -197,7 +208,110 @@ function doPostTransaksi(body, ss) {
 }
 
 // ==========================================
-// 4. FUNGSI KHUSUS LOGIN
+// 4. FUNGSI HELPER SHEET TAMU
+// ==========================================
+
+function rowsToTamu(rows) {
+  const headers = rows[0];
+  return rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = row[idx];
+    });
+    return obj;
+  });
+}
+
+function doPostTamu(body, ss){
+  const sheetTamu = ss.getSheetByName('Tamu');
+  if (!sheetTamu) {
+    return responseJSON({ status: 'error', message: 'Sheet Tamu tidak ditemukan' });
+  }
+
+  const action = body.action;
+
+  if (action === 'getTamu') {
+    const rows = sheetTamu.getDataRange().getValues();
+    if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
+    return responseJSON({ status: 'success', data: rowsToTamu(rows) });
+  }
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    if (action === 'addTamu') {
+      const newId = new Date().getTime().toString();
+      const nama_tamu = body.nama_tamu || '';
+      const kategori = body.kategori || '';
+      const kontak = body.kontak ? `'` + body.kontak.toString().replace(/^'/, '') : '';
+      const konfirmasi = body.konfirmasi || 'Pending';
+
+      sheetTamu.appendRow([newId, nama_tamu, kategori, kontak, konfirmasi]);
+      SpreadsheetApp.flush();
+      return responseJSON({
+        status: 'success',
+        message: 'Tamu berhasil ditambahkan',
+        data: {
+          id: newId,
+          nama_tamu: nama_tamu,
+          kategori: kategori,
+          kontak: kontak.replace(/^'/, ''),
+          konfirmasi: konfirmasi
+        }
+      });
+    }
+
+    if (action === 'updateTamu') {
+      if (!body.id) {
+        return responseJSON({ status: 'error', message: 'id tamu wajib diisi' });
+      }
+
+      const data = sheetTamu.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] != null && String(data[i][0]).trim() === String(body.id).trim()) {
+          const rowIndex = i + 1;
+          const updatedRow = [
+            body.nama_tamu !== undefined ? body.nama_tamu : data[i][1],
+            body.kategori !== undefined ? body.kategori : data[i][2],
+            body.kontak !== undefined ? `'` + body.kontak.toString().replace(/^'/, '') : data[i][3],
+            body.konfirmasi !== undefined ? body.konfirmasi : data[i][4]
+          ];
+          sheetTamu.getRange(rowIndex, 2, 1, 4).setValues([updatedRow]);
+          SpreadsheetApp.flush();
+          return responseJSON({ status: 'success', message: 'Data tamu berhasil diupdate' });
+        }
+      }
+      return responseJSON({ status: 'error', message: 'Tamu tidak ditemukan' });
+    }
+
+    if (action === 'deleteTamu') {
+      if (!body.id) {
+        return responseJSON({ status: 'error', message: 'id tamu wajib diisi' });
+      }
+
+      const data = sheetTamu.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] != null && String(data[i][0]).trim() === String(body.id).trim()) {
+          sheetTamu.deleteRow(i + 1);
+          SpreadsheetApp.flush();
+          return responseJSON({ status: 'success', message: 'Tamu berhasil dihapus' });
+        }
+      }
+      return responseJSON({ status: 'error', message: 'Tamu tidak ditemukan' });
+    }
+  } catch (lockErr) {
+    return responseJSON({ status: 'error', message: 'Server sibuk, silakan coba lagi: ' + lockErr.toString() });
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (e) {}
+  }
+
+  return responseJSON({ status: 'error', message: 'Action tidak dikenal di modul Tamu' });
+}
+// ==========================================
+// 5. FUNGSI KHUSUS LOGIN
 // ==========================================
 function handleLogin(body, ss) {
   const sheetUsers = ss.getSheetByName('Users');

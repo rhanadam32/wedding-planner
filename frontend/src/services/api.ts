@@ -3,6 +3,7 @@ import Cookies from 'js-cookie';
 
 const Api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || '',
+
 });
 
 export interface ApiResponse<T = any> {
@@ -158,4 +159,55 @@ export const transaksiService = {
     }
 };
 
+export interface Tamu {
+    id?: string;
+    nama_tamu: string;
+    kategori: string;
+    kontak: string;
+    konfirmasi: 'Hadir' | 'Tidak Hadir' | 'Pending';
+}
+
+export const TamuServices = {
+    async getTamu(): Promise<Tamu[]> {
+        const response = await Api.post('', JSON.stringify({
+            action: 'getTamu'
+        }), {
+            headers: jsonPlainHeaders
+        });
+        if (response.data.status === 'success') {
+            return response.data.data ?? [];
+        }
+        return [];
+    },
+
+    async addTamu(payload: Omit<Tamu, 'id'>) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'addTamu',
+            ...payload
+        }), {
+            headers: jsonPlainHeaders
+        });
+        return response.data;
+    },
+
+    async updateTamu(payload: Partial<Tamu> & { id: string }) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'updateTamu',
+            ...payload
+        }), {
+            headers: jsonPlainHeaders
+        });
+        return response.data;
+    },
+
+    async deleteTamu(id: string) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'deleteTamu',
+            id
+        }), {
+            headers: jsonPlainHeaders
+        });
+        return response.data;
+    }
+};
 export default Api;
