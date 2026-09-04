@@ -4,6 +4,7 @@ import { authService } from '../../services/api';
 
 const props = defineProps<{
   userName?: string;
+  sisaHari?: number | null;
 }>();
 
 const emit = defineEmits(['logout', 'toggleSidebar']);
@@ -39,11 +40,21 @@ const user = computed(() => {
 
     <!-- SISI KANAN: Countdown & Logout -->
     <div class="d-flex align-items-center gap-2 gap-md-3">
-      <!-- Badge Countdown H-Minus -->
+      <!-- Badge Countdown H-Minus Dinamis -->
       <div class="badge bg-danger-subtle text-danger py-2 px-2 px-md-3 rounded-pill d-flex align-items-center gap-1 fw-semibold">
         <i class="bi bi-hourglass-split"></i>
-        <span class="d-none d-sm-inline">H-65 Menuju Hari H</span>
-        <span class="d-inline d-sm-none">H-65</span>
+        <template v-if="props.sisaHari !== undefined && props.sisaHari !== null">
+          <span class="d-none d-sm-inline">
+            {{ props.sisaHari > 0 ? `H-${props.sisaHari} Menuju Hari H` : props.sisaHari === 0 ? 'Hari-H Hari Ini! 🎉' : `Hari-H Selesai (+${Math.abs(props.sisaHari)} hari)` }}
+          </span>
+          <span class="d-inline d-sm-none">
+            {{ props.sisaHari > 0 ? `H-${props.sisaHari}` : props.sisaHari === 0 ? 'Hari H' : `H+${Math.abs(props.sisaHari)}` }}
+          </span>
+        </template>
+        <template v-else>
+          <span class="d-none d-sm-inline">Menuju Hari H</span>
+          <span class="d-inline d-sm-none">Hari H</span>
+        </template>
       </div>
 
       <!-- Tombol Logout -->

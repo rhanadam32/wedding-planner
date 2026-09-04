@@ -26,6 +26,10 @@ function doPost(e) {
       return doPostTamu(body, ss);
     }
 
+    if (isPengantinAction(body.action)) {
+      return doPostPengantin(body, ss);
+    }
+
     return doPostRencana(body, ss);
   } catch (err) {
     return responseJSON({ status: 'error', message: err.toString() });
@@ -44,6 +48,14 @@ function isTamuAction(action){
   action === 'addTamu' ||
   action === 'updateTamu' ||
   action === 'deleteTamu'
+}
+
+function isPengantinAction(action) {
+  return action === 'getPengantin' ||
+    action === 'savePengantin' ||
+    action === 'updatePengantin' ||
+    action === 'getAkun' ||
+    action === 'saveAkun';
 }
 
 // ==========================================
@@ -332,6 +344,142 @@ function handleLogin(body, ss) {
     }
   }
   return responseJSON({ status: 'error', message: 'Username atau Password salah!' });
+}
+
+// ==========================================
+// 6. FUNGSI HELPER SHEET PENGANTIN / AKUN
+// Field: id, calon_pengantin_pria, calon_pengantin_wanita, tanggal_pernikahan, Lokasi
+// ==========================================
+function getPengantinSheet(ss) {
+  let sheet = ss.getSheetByName('Pengantin');
+  if (!sheet) {
+    sheet = ss.getSheetByName('Akun');
+  }
+  if (!sheet) {
+    sheet = ss.getSheetByName('Pernikahan');
+  }
+  if (!sheet) {
+    sheet = ss.insertSheet('Pengantin');
+    sheet.appendRow(['id', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['id', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
+  }
+  return sheet;
+}
+
+function rowsToPengantin(rows) {
+  if (!rows || rows.length <= 1) return [];
+  const headers = rows[0].map(h => String(h).trim());
+  return rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      if ((h === 'tanggal_pernikahan' || h.toLowerCase() === 'tanggal_pernikahan') && row[idx] instanceof Date) {
+        obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        obj[h] = row[idx];
+      }
+    });
+    return obj;
+  });
+}
+
+function doPostPengantin(body, ss) {
+  const sheet = getPengantinSheet(ss);
+  if (!sheet) {
+    return responseJSON({ status: 'error', message: 'Sheet Pengantin/Akun tidak ditemukan' });
+  }
+
+  const action = body.action;
+
+  if (action === 'getPengantin' || action === 'getAkun') {
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length <= 1) return responseJSON({ status: 'success', data: null });
+    const list = rowsToPengantin(rows);
+    return responseJSON({ status: 'success', data: list.length > 0 ? list[0] : null });
+  }
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(h => String(h).trim());
+
+    const getColIndex = (name) => {
+      const target = name.toLowerCase();
+      const idx = headers.findIndex(h => h.toLowerCase() === target);
+      return idx !== -1 ? idx : -1;
+    };
+
+    const idCol = getColIndex('id') !== -1 ? getColIndex('id') : 0;
+    const priaCol = getColIndex('calon_pengantin_pria') !== -1 ? getColIndex('calon_pengantin_pria') : 1;
+    const wanitaCol = getColIndex('calon_pengantin_wanita') !== -1 ? getColIndex('calon_pengantin_wanita') : 2;
+    const tglCol = getColIndex('tanggal_pernikahan') !== -1 ? getColIndex('tanggal_pernikahan') : 3;
+    const lokasiCol = getColIndex('Lokasi') !== -1 ? getColIndex('Lokasi') : 4;
+
+    const pria = body.calon_pengantin_pria !== undefined ? body.calon_pengantin_pria : '';
+    const wanita = body.calon_pengantin_wanita !== undefined ? body.calon_pengantin_wanita : '';
+    const tgl = body.tanggal_pernikahan !== undefined ? body.tanggal_pernikahan : '';
+    const lokasi = body.Lokasi !== undefined ? body.Lokasi : (body.lokasi !== undefined ? body.lokasi : '');
+
+    let targetRowIndex = -1;
+    if (body.id) {
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][idCol] != null && String(rows[i][idCol]).trim() === String(body.id).trim()) {
+          targetRowIndex = i + 1;
+          break;
+        }
+      }
+    }
+
+    // Jika tidak ditemukan ID yang cocok tapi sudah ada baris data, update baris data pertama
+    if (targetRowIndex === -1 && rows.length > 1) {
+      targetRowIndex = 2;
+    }
+
+    let finalId = body.id;
+
+    if (targetRowIndex !== -1) {
+      finalId = rows[targetRowIndex - 1][idCol] || body.id || '1';
+      sheet.getRange(targetRowIndex, idCol + 1).setValue(finalId);
+      sheet.getRange(targetRowIndex, priaCol + 1).setValue(pria);
+      sheet.getRange(targetRowIndex, wanitaCol + 1).setValue(wanita);
+      sheet.getRange(targetRowIndex, tglCol + 1).setValue(tgl);
+      sheet.getRange(targetRowIndex, lokasiCol + 1).setValue(lokasi);
+    } else {
+      finalId = body.id || '1';
+      const maxCols = Math.max(headers.length, 5);
+      const newRow = [];
+      for (let c = 0; c < maxCols; c++) {
+        newRow.push('');
+      }
+      newRow[idCol] = finalId;
+      newRow[priaCol] = pria;
+      newRow[wanitaCol] = wanita;
+      newRow[tglCol] = tgl;
+      newRow[lokasiCol] = lokasi;
+      sheet.appendRow(newRow);
+    }
+
+    SpreadsheetApp.flush();
+    return responseJSON({
+      status: 'success',
+      message: 'Data pernikahan berhasil disimpan',
+      data: {
+        id: finalId,
+        calon_pengantin_pria: pria,
+        calon_pengantin_wanita: wanita,
+        tanggal_pernikahan: tgl,
+        Lokasi: lokasi
+      }
+    });
+  } catch (lockErr) {
+    return responseJSON({ status: 'error', message: 'Server sibuk, silakan coba lagi: ' + lockErr.toString() });
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (e) {}
+  }
 }
 
 function responseJSON(data) {

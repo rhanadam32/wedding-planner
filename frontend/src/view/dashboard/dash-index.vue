@@ -1,37 +1,131 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { authService, transaksiService, Transaksi } from '../../services/api';
+import { ref, inject, computed, onMounted } from 'vue';
+import { authService, transaksiService, rencanaService, TamuServices, Transaksi, RencanaItem, Pengantin } from '../../services/api';
 
 const user = authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin' };
 
-const weddingInfo = ref({
-  pasangan: 'Raihan & Pasangan',
-  tanggal: '24 Oktober 2026',
-  lokasi: 'Jakarta',
-  sisaHari: 65,
+// ============================================================
+// Inject dari dashboard.vue (layout parent)
+// ============================================================
+const weddingProfile = inject<ReturnType<typeof ref<Pengantin | null>>>('weddingProfile');
+const sisaHariInjected = inject<ReturnType<typeof ref<number | null>>>('sisaHari');
+
+// ============================================================
+// State Data
+// ============================================================
+const transaksiTerakhir = ref<Transaksi[]>([]);
+const totalPengeluaran = ref(0);
+const jumlahTransaksi = ref(0);
+
+const rencanaList = ref<RencanaItem[]>([]);
+const jumlahRencana = ref(0);
+const jumlahSelesai = ref(0);
+
+const jumlahTamu = ref(0);
+const jumlahTamuHadir = ref(0);
+
+const isLoadingTransaksi = ref(true);
+const isLoadingRencana = ref(true);
+const isLoadingTamu = ref(true);
+
+// ============================================================
+// Computed: Wedding Info dari inject
+// ============================================================
+const namaPassangan = computed(() => {
+  const p = weddingProfile?.value;
+  if (!p) return '— & —';
+  const pria = p.calon_pengantin_pria?.trim() || '—';
+  const wanita = p.calon_pengantin_wanita?.trim() || '—';
+  return `${pria} & ${wanita}`;
 });
 
-const ringkasan = ref([
-  { label: 'Sisa Waktu', nilai: '65 Hari', subtext: 'Menuju hari pernikahan', icon: 'bi bi-calendar2-heart-fill', bg: 'bg-primary-subtle text-primary' },
-  { label: 'Progres Persiapan', nilai: '72%', subtext: '8 dari 12 tugas selesai', icon: 'bi bi-check2-circle', bg: 'bg-success-subtle text-success' },
-  { label: 'Total Pengeluaran', nilai: 'Rp 45.000.000', subtext: 'Dari target Rp 80.000.000', icon: 'bi bi-wallet2', bg: 'bg-warning-subtle text-warning' },
-  { label: 'Tamu Undangan', nilai: '150 Orang', subtext: '110 Sudah konfirmasi', icon: 'bi bi-people-fill', bg: 'bg-info-subtle text-info' },
+const tanggalPernikahan = computed(() => {
+  const tgl = weddingProfile?.value?.tanggal_pernikahan;
+  if (!tgl) return '— Belum diisi —';
+  const d = new Date(tgl);
+  if (isNaN(d.getTime())) return tgl;
+  return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+});
+
+const lokasiPernikahan = computed(() => {
+  return weddingProfile?.value?.Lokasi?.trim() || '— Belum diisi —';
+});
+
+const sisaHari = computed(() => sisaHariInjected?.value ?? null);
+
+const sisaHariLabel = computed(() => {
+  const n = sisaHari.value;
+  if (n === null) return '—';
+  if (n > 0) return `${n}`;
+  if (n === 0) return '🎉';
+  return `+${Math.abs(n)}`;
+});
+
+const sisaHariSubtext = computed(() => {
+  const n = sisaHari.value;
+  if (n === null) return 'Tanggal belum diisi';
+  if (n > 0) return 'Hari Menuju Hari-H';
+  if (n === 0) return 'Selamat! Hari-H Tiba!';
+  return 'Hari sejak pernikahan';
+});
+
+const profilBelumLengkap = computed(() => {
+  const p = weddingProfile?.value;
+  return !p?.calon_pengantin_pria && !p?.calon_pengantin_wanita;
+});
+
+// ============================================================
+// Computed: Progres Rencana
+// ============================================================
+const progresRencana = computed(() => {
+  if (jumlahRencana.value === 0) return '0%';
+  return `${Math.round((jumlahSelesai.value / jumlahRencana.value) * 100)}%`;
+});
+
+const progresSubtext = computed(() => {
+  return `${jumlahSelesai.value} dari ${jumlahRencana.value} tugas selesai`;
+});
+
+// ============================================================
+// Computed: 4 Kartu Statistik
+// ============================================================
+const ringkasan = computed(() => [
+  {
+    label: 'Sisa Waktu',
+    nilai: sisaHariLabel.value,
+    subtext: sisaHariSubtext.value,
+    icon: 'bi bi-calendar2-heart-fill',
+    bg: 'bg-primary-subtle text-primary'
+  },
+  {
+    label: 'Progres Persiapan',
+    nilai: progresRencana.value,
+    subtext: progresSubtext.value,
+    icon: 'bi bi-check2-circle',
+    bg: 'bg-success-subtle text-success'
+  },
+  {
+    label: 'Total Pengeluaran',
+    nilai: isLoadingTransaksi.value ? '...' : formatRupiah(totalPengeluaran.value),
+    subtext: isLoadingTransaksi.value ? 'Memuat...' : `${jumlahTransaksi.value} transaksi tercatat`,
+    icon: 'bi bi-wallet2',
+    bg: 'bg-warning-subtle text-warning'
+  },
+  {
+    label: 'Tamu Undangan',
+    nilai: isLoadingTamu.value ? '...' : `${jumlahTamu.value} Orang`,
+    subtext: isLoadingTamu.value ? 'Memuat...' : `${jumlahTamuHadir.value} sudah konfirmasi hadir`,
+    icon: 'bi bi-people-fill',
+    bg: 'bg-info-subtle text-info'
+  }
 ]);
 
-const checklist = ref([
-  { id: 1, text: 'Menentukan tanggal & tempat akad/resepsi', done: true },
-  { id: 2, text: 'Menyiapkan berkas KUA / Catatan Sipil', done: true },
-  { id: 3, text: 'Memilih busana akad & rias pengantin', done: true },
-  { id: 4, text: 'Pesan konsumsi / katering keluarga', done: false },
-  { id: 5, text: 'Finalisasi daftar undangan keluarga & sahabat', done: false },
-]);
+// Preview 5 rencana pertama
+const checklistPreview = computed(() => rencanaList.value.slice(0, 5));
 
-const toggleCheck = (item: any) => {
-  item.done = !item.done;
-};
-
-const transaksiTerakhir = ref<Transaksi[]>([]);
-
+// ============================================================
+// Format Helper
+// ============================================================
 const formatRupiah = (value: number | string) => {
   const n = Number(value);
   if (Number.isNaN(n)) return String(value || '-');
@@ -42,46 +136,90 @@ const formatRupiah = (value: number | string) => {
   }).format(n);
 };
 
-onMounted(async () => {
+// ============================================================
+// Fetch Data
+// ============================================================
+const fetchTransaksi = async () => {
+  isLoadingTransaksi.value = true;
   try {
     const data = await transaksiService.getTransaksi();
     transaksiTerakhir.value = [...data].slice(-4).reverse();
-    const total = data.reduce((sum, item) => sum + (Number(item.Kredit_Debit) || 0), 0);
-    ringkasan.value[2] = {
-      ...ringkasan.value[2],
-      nilai: formatRupiah(total),
-      subtext: `${data.length} transaksi tercatat`
-    };
+    totalPengeluaran.value = data.reduce((sum, item) => sum + (Number(item.Kredit_Debit) || 0), 0);
+    jumlahTransaksi.value = data.length;
   } catch (error) {
-    console.error('Gagal memuat transaksi dashboard:', error);
+    console.error('Gagal memuat transaksi:', error);
+  } finally {
+    isLoadingTransaksi.value = false;
   }
+};
+
+const fetchRencana = async () => {
+  isLoadingRencana.value = true;
+  try {
+    const data = await rencanaService.getRencana();
+    rencanaList.value = data;
+    jumlahRencana.value = data.length;
+    jumlahSelesai.value = data.filter(r => r.status === 'selesai').length;
+  } catch (error) {
+    console.error('Gagal memuat rencana:', error);
+  } finally {
+    isLoadingRencana.value = false;
+  }
+};
+
+const fetchTamu = async () => {
+  isLoadingTamu.value = true;
+  try {
+    const data = await TamuServices.getTamu();
+    jumlahTamu.value = data.length;
+    jumlahTamuHadir.value = data.filter(t => t.konfirmasi === 'Hadir').length;
+  } catch (error) {
+    console.error('Gagal memuat tamu:', error);
+  } finally {
+    isLoadingTamu.value = false;
+  }
+};
+
+onMounted(async () => {
+  await Promise.all([fetchTransaksi(), fetchRencana(), fetchTamu()]);
 });
 </script>
 
 <template>
   <div class="dash-content d-flex flex-column gap-4">
-    <!-- BANNER ATAS: INFO PERNIKAHAN MANDIRI -->
+
+    <!-- ===== BANNER ATAS: INFO PERNIKAHAN ===== -->
     <div class="card border-0 rounded-4 shadow-sm p-4 bg-white">
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
           <span class="badge bg-danger-subtle text-danger px-3 py-1 rounded-pill mb-2 fw-semibold">
             <i class="bi bi-heart-fill me-1"></i> Rencana Pernikahan Mandiri
           </span>
-          <h3 class="fw-bold text-dark mb-1">{{ weddingInfo.pasangan }}</h3>
+          <h3 class="fw-bold text-dark mb-1">{{ namaPassangan }}</h3>
           <p class="text-muted mb-0 d-flex flex-wrap gap-3 small">
-            <span><i class="bi bi-calendar-event me-1 text-primary"></i> {{ weddingInfo.tanggal }}</span>
-            <span><i class="bi bi-geo-alt me-1 text-danger"></i> {{ weddingInfo.lokasi }}</span>
-            <span><i class="bi bi-person me-1 text-success"></i> Akun: {{ user.name }}</span>
+            <span><i class="bi bi-calendar-event me-1 text-primary"></i>{{ tanggalPernikahan }}</span>
+            <span><i class="bi bi-geo-alt me-1 text-danger"></i>{{ lokasiPernikahan }}</span>
+            <span><i class="bi bi-person me-1 text-success"></i>Akun: {{ user.name }}</span>
           </p>
         </div>
-        <div class="text-md-end bg-light p-3 rounded-4 border">
-          <span class="display-6 fw-bold text-danger lh-1">{{ weddingInfo.sisaHari }}</span>
-          <span class="d-block text-muted small fw-semibold">Hari Menuju Hari-H</span>
+
+        <!-- Countdown Box -->
+        <div class="text-md-end bg-light p-3 rounded-4 border flex-shrink-0" style="min-width: 130px;">
+          <span v-if="sisaHari === null" class="text-muted small d-block text-center">Tanggal<br>belum diisi</span>
+          <template v-else>
+            <span
+              class="display-6 fw-bold lh-1"
+              :class="sisaHari > 0 ? 'text-danger' : sisaHari === 0 ? 'text-success' : 'text-secondary'"
+            >
+              {{ sisaHariLabel }}
+            </span>
+            <span class="d-block text-muted small fw-semibold mt-1">{{ sisaHariSubtext }}</span>
+          </template>
         </div>
       </div>
     </div>
 
-    <!-- 4 KARTU STATISTIK RINGKASAN -->
+    <!-- ===== 4 KARTU STATISTIK ===== -->
     <div class="row g-3">
       <div v-for="(item, idx) in ringkasan" :key="idx" class="col-sm-6 col-xl-3">
         <div class="card border-0 rounded-4 shadow-sm p-3 bg-white h-100">
@@ -90,7 +228,7 @@ onMounted(async () => {
               <small class="text-muted d-block fw-semibold">{{ item.label }}</small>
               <h5 class="fw-bold mb-0 mt-1 text-dark">{{ item.nilai }}</h5>
             </div>
-            <div :class="item.bg" class="rounded-3 p-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+            <div :class="item.bg" class="rounded-3 p-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px;">
               <i :class="item.icon" class="fs-4"></i>
             </div>
           </div>
@@ -99,88 +237,150 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- MAIN TWO-COLUMN SECTION -->
+    <!-- ===== MAIN TWO-COLUMN ===== -->
     <div class="row g-4">
-      <!-- KOLOM KIRI: CHECKLIST RINGKAS -->
+
+      <!-- KOLOM KIRI: CHECKLIST RENCANA -->
       <div class="col-lg-7">
         <div class="card border-0 rounded-4 shadow-sm p-4 bg-white h-100">
           <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
             <div>
               <h5 class="fw-bold mb-0 text-dark">
-                <i class="bi bi-check2-square text-success me-2"></i>Checklist Persiapan Penting
+                <i class="bi bi-check2-square text-success me-2"></i>Checklist Persiapan
               </h5>
-              <small class="text-muted">Centang tugas yang telah diselesaikan</small>
+              <small class="text-muted">{{ progresSubtext }}</small>
+            </div>
+            <router-link to="/dashboard/rencana" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
+              Lihat Semua
+            </router-link>
+          </div>
+
+          <div v-if="isLoadingRencana" class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+            <p class="small mb-0">Memuat rencana...</p>
+          </div>
+
+          <div v-else-if="checklistPreview.length === 0" class="text-center py-4 text-muted">
+            <i class="bi bi-clipboard-x fs-2 d-block mb-2 text-secondary"></i>
+            <p class="small mb-0">Belum ada rencana. <router-link to="/dashboard/rencana">Tambah sekarang</router-link></p>
+          </div>
+
+          <div v-else class="list-group list-group-flush">
+            <div
+              v-for="item in checklistPreview"
+              :key="item.id"
+              class="list-group-item d-flex justify-content-between align-items-center px-0 py-3"
+            >
+              <div class="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden">
+                <i
+                  class="bi flex-shrink-0"
+                  :class="item.status === 'selesai' ? 'bi-check-circle-fill text-success' : 'bi-circle text-warning'"
+                ></i>
+                <span
+                  class="text-truncate"
+                  :class="item.status === 'selesai' ? 'text-decoration-line-through text-muted small' : 'fw-medium text-dark small'"
+                >
+                  {{ item.TugasRencana }}
+                </span>
+              </div>
+              <span
+                class="badge rounded-pill ms-2 flex-shrink-0"
+                :class="item.status === 'selesai' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+              >
+                {{ item.status === 'selesai' ? 'Selesai' : 'Pending' }}
+              </span>
             </div>
           </div>
 
-          <div class="list-group list-group-flush">
-            <div 
-              v-for="item in checklist" 
-              :key="item.id" 
-              class="list-group-item d-flex justify-content-between align-items-center px-0 py-3"
-            >
-              <div class="form-check d-flex align-items-center gap-2">
-                <input 
-                  type="checkbox" 
-                  class="form-check-input mt-0 fs-5 cursor-pointer" 
-                  :id="'chk-' + item.id" 
-                  :checked="item.done"
-                  @change="toggleCheck(item)"
-                />
-                <label 
-                  :for="'chk-' + item.id" 
-                  class="form-check-label cursor-pointer mb-0"
-                  :class="{ 'text-decoration-line-through text-muted': item.done, 'fw-medium text-dark': !item.done }"
-                >
-                  {{ item.text }}
-                </label>
-              </div>
-              <span 
-                class="badge rounded-pill"
-                :class="item.done ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
-              >
-                {{ item.done ? 'Selesai' : 'Pending' }}
-              </span>
+          <!-- Progress Bar -->
+          <div v-if="!isLoadingRencana && jumlahRencana > 0" class="mt-3 pt-2 border-top">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+              <span>Progress</span>
+              <span class="fw-semibold text-success">{{ progresRencana }}</span>
+            </div>
+            <div class="progress" style="height: 8px; border-radius: 4px;">
+              <div
+                class="progress-bar bg-success"
+                role="progressbar"
+                :style="{ width: progresRencana }"
+                :aria-valuenow="jumlahSelesai"
+                :aria-valuemax="jumlahRencana"
+              ></div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- KOLOM KANAN: PENGELUARAN TERAKHIR -->
+      <!-- KOLOM KANAN: TRANSAKSI TERAKHIR -->
       <div class="col-lg-5">
         <div class="card border-0 rounded-4 shadow-sm p-4 bg-white h-100">
           <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
             <div>
               <h5 class="fw-bold mb-0 text-dark">
-                <i class="bi bi-receipt text-warning me-2"></i>Pengeluaran Terakhir
+                <i class="bi bi-receipt text-warning me-2"></i>Transaksi Terakhir
               </h5>
-              <small class="text-muted">Catatan pembayaran biaya</small>
+              <small class="text-muted">{{ isLoadingTransaksi ? 'Memuat...' : `${jumlahTransaksi} transaksi total` }}</small>
             </div>
+            <router-link to="/dashboard/transaksi" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-semibold">
+              Lihat Semua
+            </router-link>
           </div>
 
-          <div class="d-flex flex-column gap-2">
-            <div v-if="transaksiTerakhir.length === 0" class="text-muted small py-3">
-              Belum ada transaksi tercatat.
-            </div>
-            <div 
-              v-for="trx in transaksiTerakhir" 
+          <div v-if="isLoadingTransaksi" class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm text-warning mb-2" role="status"></div>
+            <p class="small mb-0">Memuat transaksi...</p>
+          </div>
+
+          <div v-else-if="transaksiTerakhir.length === 0" class="text-center py-4 text-muted">
+            <i class="bi bi-wallet2 fs-2 d-block mb-2 text-secondary"></i>
+            <p class="small mb-0">Belum ada transaksi. <router-link to="/dashboard/transaksi">Tambah sekarang</router-link></p>
+          </div>
+
+          <div v-else class="d-flex flex-column gap-2">
+            <div
+              v-for="trx in transaksiTerakhir"
               :key="trx.id_transaksi"
-              class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between"
+              class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between gap-2"
             >
-              <div>
-                <strong class="d-block text-dark small">{{ trx.Keterangan }}</strong>
-                <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">
-                  {{ trx.Kategori || '-' }}
-                </span>
+              <div class="overflow-hidden flex-grow-1">
+                <strong class="d-block text-dark small text-truncate">{{ trx.Keterangan || '—' }}</strong>
+                <div class="d-flex align-items-center gap-1 mt-1">
+                  <span class="badge bg-white text-dark border" style="font-size: 0.68rem;">{{ trx.Kategori || '-' }}</span>
+                  <small class="text-muted" style="font-size: 0.7rem;">{{ trx.tanggal || '' }}</small>
+                </div>
               </div>
-              <div class="text-end">
+              <div class="text-end flex-shrink-0">
                 <span class="fw-bold text-dark small">{{ formatRupiah(trx.Kredit_Debit) }}</span>
               </div>
             </div>
           </div>
+
+          <!-- Total -->
+          <div v-if="!isLoadingTransaksi && jumlahTransaksi > 0" class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+            <small class="text-muted fw-semibold">Total Pengeluaran</small>
+            <span class="fw-bold text-warning">{{ formatRupiah(totalPengeluaran) }}</span>
+          </div>
         </div>
       </div>
+
     </div>
+
+    <!-- ===== BANNER SETUP PROFIL (jika profil kosong) ===== -->
+    <div v-if="profilBelumLengkap" class="card border-0 rounded-4 shadow-sm p-4 bg-white">
+      <div class="d-flex align-items-center gap-3">
+        <div class="bg-primary-subtle text-primary rounded-3 p-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 52px; height: 52px;">
+          <i class="bi bi-person-heart fs-4"></i>
+        </div>
+        <div class="flex-grow-1">
+          <h6 class="fw-bold text-dark mb-0">Lengkapi Data Pernikahan Anda</h6>
+          <small class="text-muted">Isi nama pengantin, tanggal, dan lokasi agar dashboard tampil lebih personal.</small>
+        </div>
+        <router-link to="/dashboard/akun" class="btn btn-primary btn-sm rounded-pill px-3 fw-semibold flex-shrink-0">
+          <i class="bi bi-pencil me-1"></i> Lengkapi
+        </router-link>
+      </div>
+    </div>
+
   </div>
 </template>
 

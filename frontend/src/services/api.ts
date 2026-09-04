@@ -210,4 +210,42 @@ export const TamuServices = {
         return response.data;
     }
 };
+
+export interface Pengantin {
+    id?: string;
+    calon_pengantin_pria: string;
+    calon_pengantin_wanita: string;
+    tanggal_pernikahan: string;
+    Lokasi: string;
+}
+
+export const pengantinService = {
+    async getPengantin(): Promise<Pengantin | null> {
+        const response = await Api.post('', JSON.stringify({
+            action: 'getPengantin'
+        }), {
+            headers: jsonPlainHeaders
+        });
+        if (response.data.status === 'success') {
+            if (Array.isArray(response.data.data)) {
+                return response.data.data[0] || null;
+            }
+            return response.data.data || null;
+        }
+        return null;
+    },
+
+    async savePengantin(payload: Pengantin) {
+        const response = await Api.post('', JSON.stringify({
+            action: 'savePengantin',
+            ...payload
+        }), {
+            headers: jsonPlainHeaders
+        });
+        return response.data;
+    }
+};
+
+export const akunService = pengantinService;
+
 export default Api;

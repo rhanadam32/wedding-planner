@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, provide } from 'vue';
 import { useRouter } from 'vue-router';
-import { authService } from '../../services/api';
+import { authService, pengantinService, Pengantin } from '../../services/api';
 
 import Sidebar from '../../components/layout/sidebar.vue';
 import Header from '../../components/layout/header.vue';
@@ -11,6 +11,39 @@ const router = useRouter();
 const user = authService.getUser() || { name: 'Pengantin' };
 
 const isSidebarOpen = ref(false); // State mobile sidebar (buka/tutup)
+const weddingProfile = ref<Pengantin | null>(null);
+const sisaHari = ref<number | null>(null);
+
+const calculateSisaHari = (tglStr?: string): number | null => {
+  if (!tglStr) return null;
+  const target = new Date(tglStr);
+  if (isNaN(target.getTime())) return null;
+  const now = new Date();
+  const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffTime = targetMidnight.getTime() - nowMidnight.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const fetchWeddingData = async () => {
+  try {
+    const data = await pengantinService.getPengantin();
+    if (data) {
+      weddingProfile.value = data;
+      sisaHari.value = calculateSisaHari(data.tanggal_pernikahan);
+    }
+  } catch (err) {
+    console.error('Gagal mengambil data profil pernikahan di layout:', err);
+  }
+};
+
+provide('weddingProfile', weddingProfile);
+provide('sisaHari', sisaHari);
+provide('refreshWeddingData', fetchWeddingData);
+
+onMounted(() => {
+  fetchWeddingData();
+});
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -48,6 +81,7 @@ const handleLogout = () => {
       <!-- EMBED HEADER -->
       <Header 
         :user-name="user?.name" 
+        :sisa-hari="sisaHari"
         @logout="handleLogout" 
         @toggle-sidebar="toggleSidebar"
       />
