@@ -135,8 +135,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="card border-0 rounded-4 shadow-sm p-4 bg-white">
-    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-4 pb-2 border-bottom">
+  <div class="card border-0 rounded-4 shadow-sm p-3 p-sm-4 bg-white">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4 pb-2 border-bottom">
       <div>
         <h4 class="fw-bold mb-1 text-dark">
           <i class="bi bi-wallet2 text-warning me-2"></i>Transaksi & Pengeluaran
@@ -144,71 +145,122 @@ onMounted(() => {
         <p class="text-muted small mb-0">Catatan pembayaran biaya dari Google Sheet</p>
       </div>
       <button
-        class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold"
+        class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm align-self-start align-self-sm-center"
         @click="openCreateModal"
       >
         <i class="bi bi-plus-lg me-1"></i> Catat Pengeluaran
       </button>
     </div>
 
+    <!-- Loading State -->
     <div v-if="isLoading" class="text-center py-5 text-muted">
       <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
       <p class="small mb-0">Memuat data transaksi...</p>
     </div>
 
+    <!-- Empty State -->
     <div v-else-if="list.length === 0" class="text-center py-5 text-muted">
       <i class="bi bi-receipt fs-1 d-block mb-2 text-secondary"></i>
       <p class="mb-0 fw-medium">Belum ada transaksi yang tersimpan.</p>
     </div>
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr class="small text-muted text-uppercase">
-            <th>Tanggal</th>
-            <th>Keterangan</th>
-            <th>Kategori</th>
-            <th>Kredit / Debit</th>
-            <th class="text-end">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in list" :key="item.id_transaksi">
-            <td class="text-muted small">{{ item.tanggal || '-' }}</td>
-            <td class="fw-semibold text-dark">{{ item.Keterangan }}</td>
-            <td><span class="badge bg-light text-dark border">{{ item.Kategori || '-' }}</span></td>
-            <td class="fw-bold text-dark">{{ formatRupiah(item.Kredit_Debit) }}</td>
-            <td class="text-end">
-              <div class="d-inline-flex gap-1">
-                <button
-                  type="button"
-                  class="btn btn-outline-primary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
-                  style="width: 32px; height: 32px;"
-                  title="Ubah"
-                  @click="openEditModal(item)"
-                >
-                  <i class="bi bi-pencil"></i>
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
-                  style="width: 32px; height: 32px;"
-                  title="Hapus"
-                  :disabled="deletingId === String(item.id_transaksi)"
-                  @click="handleDelete(item)"
-                >
-                  <span v-if="deletingId === String(item.id_transaksi)" class="spinner-border spinner-border-sm" role="status"></span>
-                  <i v-else class="bi bi-trash3"></i>
-                </button>
+    <!-- Data List -->
+    <div v-else>
+      <!-- Mobile Card View (d-md-none) -->
+      <div class="d-md-none d-flex flex-column gap-3">
+        <div
+          v-for="item in list"
+          :key="item.id_transaksi"
+          class="p-3 rounded-3 border bg-light-subtle d-flex flex-column gap-2 shadow-sm"
+        >
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 overflow-hidden">
+              <h6 class="fw-bold text-dark mb-1 text-break">{{ item.Keterangan }}</h6>
+              <div class="d-flex flex-wrap align-items-center gap-2 small">
+                <span class="badge bg-white text-dark border">{{ item.Kategori || '-' }}</span>
+                <span class="text-muted"><i class="bi bi-calendar-event me-1"></i>{{ item.tanggal || '-' }}</span>
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <div class="text-end flex-shrink-0">
+              <span class="fw-bold text-dark fs-6">{{ formatRupiah(item.Kredit_Debit) }}</span>
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-1"
+              @click="openEditModal(item)"
+            >
+              <i class="bi bi-pencil"></i>
+              <span>Ubah</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-1"
+              :disabled="deletingId === String(item.id_transaksi)"
+              @click="handleDelete(item)"
+            >
+              <span v-if="deletingId === String(item.id_transaksi)" class="spinner-border spinner-border-sm" role="status"></span>
+              <template v-else>
+                <i class="bi bi-trash3"></i>
+                <span>Hapus</span>
+              </template>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Table View (d-none d-md-block) -->
+      <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr class="small text-muted text-uppercase">
+              <th>Tanggal</th>
+              <th>Keterangan</th>
+              <th>Kategori</th>
+              <th>Kredit / Debit</th>
+              <th class="text-end">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in list" :key="item.id_transaksi">
+              <td class="text-muted small">{{ item.tanggal || '-' }}</td>
+              <td class="fw-semibold text-dark">{{ item.Keterangan }}</td>
+              <td><span class="badge bg-light text-dark border">{{ item.Kategori || '-' }}</span></td>
+              <td class="fw-bold text-dark">{{ formatRupiah(item.Kredit_Debit) }}</td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                    style="width: 32px; height: 32px;"
+                    title="Ubah"
+                    @click="openEditModal(item)"
+                  >
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                    style="width: 32px; height: 32px;"
+                    title="Hapus"
+                    :disabled="deletingId === String(item.id_transaksi)"
+                    @click="handleDelete(item)"
+                  >
+                    <span v-if="deletingId === String(item.id_transaksi)" class="spinner-border spinner-border-sm" role="status"></span>
+                    <i v-else class="bi bi-trash3"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
+    <!-- Modal Form Tambah / Ubah Transaksi -->
     <div v-if="showModal" class="modal-backdrop-custom d-flex align-items-center justify-content-center">
-      <div class="modal-dialog-custom bg-white rounded-4 shadow-lg p-4 w-100 mx-3" style="max-width: 500px;">
+      <div class="modal-dialog-custom bg-white rounded-4 shadow-lg p-3 p-sm-4 w-100 mx-3" style="max-width: 500px;">
         <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
           <div class="d-flex align-items-center gap-2">
             <div class="bg-warning-subtle text-warning p-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
@@ -275,7 +327,7 @@ onMounted(() => {
           <div class="d-flex justify-content-end gap-2 pt-2 border-top">
             <button
               type="button"
-              class="btn btn-light rounded-pill px-4 fw-semibold text-muted"
+              class="btn btn-light rounded-pill px-3 px-sm-4 fw-semibold text-muted"
               :disabled="isSubmitting"
               @click="closeModal"
             >
@@ -283,7 +335,7 @@ onMounted(() => {
             </button>
             <button
               type="submit"
-              class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm"
+              class="btn btn-primary rounded-pill px-3 px-sm-4 fw-semibold shadow-sm"
               :disabled="isSubmitting"
             >
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status"></span>
@@ -297,6 +349,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.cursor-pointer {
+  cursor: pointer;
+}
+
 .modal-backdrop-custom {
   position: fixed;
   top: 0;

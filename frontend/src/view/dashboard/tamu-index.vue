@@ -141,156 +141,290 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="card border-0 rounded-4 shadow-sm p-4 bg-white">
-    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-4 pb-2 border-bottom">
+  <div class="card border-0 rounded-4 shadow-sm p-3 p-sm-4 bg-white">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4 pb-2 border-bottom">
       <div>
         <h4 class="fw-bold mb-1 text-dark">
           <i class="bi bi-people-fill text-info me-2"></i>Daftar Tamu Undangan
         </h4>
         <p class="text-muted small mb-0">Kelola daftar tamu keluarga, sahabat, dan status kehadiran</p>
       </div>
-      <button class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold" @click="openCreateModal">
+      <button class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm align-self-start align-self-sm-center" @click="openCreateModal">
         <i class="bi bi-person-plus me-1"></i> Tambah Tamu
       </button>
     </div>
 
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr class="small text-muted text-uppercase">
-            <th>Nama Tamu</th>
-            <th>Kategori</th>
-            <th>Kontak (WA)</th>
-            <th>Konfirmasi</th>
-            <th class="text-end">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="isLoading">
-            <td colspan="5" class="text-center py-4 text-muted">Memuat data tamu...</td>
-          </tr>
-          <tr v-else-if="daftarTamu.length === 0">
-            <td colspan="5" class="text-center py-4 text-muted">Belum ada data tamu.</td>
-          </tr>
-          <tr v-for="tamu in daftarTamu" :key="tamu.id || tamu.nama_tamu">
-            <td class="fw-semibold text-dark">{{ tamu.nama_tamu }}</td>
-            <td><span class="badge bg-light text-dark border">{{ tamu.kategori }}</span></td>
-            <td>
-              <a :href="'https://wa.me/' + tamu.kontak" target="_blank" class="text-decoration-none small text-success">
-                <i class="bi bi-whatsapp me-1"></i>{{ tamu.kontak }}
+    <!-- Loading State -->
+    <div v-if="isLoading" class="text-center py-5 text-muted">
+      <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+      <p class="small mb-0">Memuat data tamu...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else-if="daftarTamu.length === 0" class="text-center py-5 text-muted">
+      <i class="bi bi-people fs-1 d-block mb-2 text-secondary"></i>
+      <p class="mb-0 fw-medium">Belum ada data tamu undangan.</p>
+    </div>
+
+    <!-- Data List -->
+    <div v-else>
+      <!-- Mobile Card View (d-md-none) -->
+      <div class="d-md-none d-flex flex-column gap-3">
+        <div
+          v-for="tamu in daftarTamu"
+          :key="tamu.id || tamu.nama_tamu"
+          class="p-3 rounded-3 border bg-light-subtle d-flex flex-column gap-2 shadow-sm"
+        >
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 overflow-hidden">
+              <h6 class="fw-bold text-dark mb-1 text-break">{{ tamu.nama_tamu }}</h6>
+              <div class="d-flex flex-wrap align-items-center gap-2 small">
+                <span class="badge bg-white text-dark border">{{ tamu.kategori || '-' }}</span>
+                <span
+                  class="badge rounded-pill"
+                  :class="{
+                    'bg-success-subtle text-success': tamu.konfirmasi === 'Hadir',
+                    'bg-danger-subtle text-danger': tamu.konfirmasi === 'Tidak Hadir',
+                    'bg-secondary-subtle text-secondary': tamu.konfirmasi === 'Pending'
+                  }"
+                >
+                  {{ tamu.konfirmasi }}
+                </span>
+              </div>
+            </div>
+            <div v-if="tamu.kontak" class="flex-shrink-0">
+              <a
+                :href="'https://wa.me/' + tamu.kontak"
+                target="_blank"
+                class="btn btn-sm btn-outline-success rounded-pill px-2 py-1 d-inline-flex align-items-center gap-1"
+                style="font-size: 0.78rem;"
+                title="Hubungi WhatsApp"
+              >
+                <i class="bi bi-whatsapp"></i>
+                <span>WA</span>
               </a>
-            </td>
-            <td>
-              <span
-                class="badge"
-                :class="{
-                  'bg-success-subtle text-success': tamu.konfirmasi === 'Hadir',
-                  'bg-danger-subtle text-danger': tamu.konfirmasi === 'Tidak Hadir',
-                  'bg-secondary-subtle text-secondary': tamu.konfirmasi === 'Pending'
-                }"
-              >
-                {{ tamu.konfirmasi }}
-              </span>
-            </td>
-            <td class="text-end">
-              <button
-                class="btn btn-sm btn-outline-secondary border-0 me-1"
-                title="Edit Tamu"
-                @click="openEditModal(tamu)"
-              >
-                <i class="bi bi-pencil-square"></i>
-              </button>
-              <button
-                class="btn btn-sm btn-outline-danger border-0"
-                title="Hapus Tamu"
-                @click="handleDelete(tamu)"
-              >
-                <i class="bi bi-trash"></i>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-1"
+              @click="openEditModal(tamu)"
+            >
+              <i class="bi bi-pencil"></i>
+              <span>Ubah</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-danger btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-1"
+              @click="handleDelete(tamu)"
+            >
+              <i class="bi bi-trash3"></i>
+              <span>Hapus</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Table View (d-none d-md-block) -->
+      <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr class="small text-muted text-uppercase">
+              <th>Nama Tamu</th>
+              <th>Kategori</th>
+              <th>Kontak (WA)</th>
+              <th>Konfirmasi</th>
+              <th class="text-end">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tamu in daftarTamu" :key="tamu.id || tamu.nama_tamu">
+              <td class="fw-semibold text-dark">{{ tamu.nama_tamu }}</td>
+              <td><span class="badge bg-light text-dark border">{{ tamu.kategori || '-' }}</span></td>
+              <td>
+                <a v-if="tamu.kontak" :href="'https://wa.me/' + tamu.kontak" target="_blank" class="text-decoration-none small text-success">
+                  <i class="bi bi-whatsapp me-1"></i>{{ tamu.kontak }}
+                </a>
+                <span v-else class="text-muted small">-</span>
+              </td>
+              <td>
+                <span
+                  class="badge rounded-pill"
+                  :class="{
+                    'bg-success-subtle text-success': tamu.konfirmasi === 'Hadir',
+                    'bg-danger-subtle text-danger': tamu.konfirmasi === 'Tidak Hadir',
+                    'bg-secondary-subtle text-secondary': tamu.konfirmasi === 'Pending'
+                  }"
+                >
+                  {{ tamu.konfirmasi }}
+                </span>
+              </td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                    style="width: 32px; height: 32px;"
+                    title="Ubah"
+                    @click="openEditModal(tamu)"
+                  >
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                    style="width: 32px; height: 32px;"
+                    title="Hapus"
+                    @click="handleDelete(tamu)"
+                  >
+                    <i class="bi bi-trash3"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Modal Tambah / Edit Tamu -->
-    <div v-if="showModal" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow rounded-4">
-          <div class="modal-header border-bottom-0 pb-0">
-            <h5 class="modal-title fw-bold">
-              {{ editingId ? 'Edit Tamu Undangan' : 'Tambah Tamu Undangan' }}
-            </h5>
-            <button type="button" class="btn-close" @click="closeModal" :disabled="isSubmitting"></button>
-          </div>
-          <div class="modal-body pt-3">
-            <div v-if="errorMessage" class="alert alert-danger py-2 small mb-3">
-              {{ errorMessage }}
+    <div v-if="showModal" class="modal-backdrop-custom d-flex align-items-center justify-content-center">
+      <div class="modal-dialog-custom bg-white rounded-4 shadow-lg p-3 p-sm-4 w-100 mx-3" style="max-width: 500px;">
+        <!-- Modal Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+          <div class="d-flex align-items-center gap-2">
+            <div class="bg-info-subtle text-info p-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+              <i class="bi bi-people-fill fs-5"></i>
             </div>
-
-            <form @submit.prevent="handleSubmit">
-              <div class="mb-3">
-                <label class="form-label small fw-semibold text-muted">Nama Tamu</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  v-model="form.nama_tamu"
-                  placeholder="Contoh: Bpk. Hendra & Keluarga"
-                  required
-                />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label small fw-semibold text-muted">Kategori / Kelompok</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  v-model="form.kategori"
-                  placeholder="Contoh: Keluarga / Sahabat / Teman Kantor"
-                />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label small fw-semibold text-muted">Kontak (WhatsApp)</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  v-model="form.kontak"
-                  placeholder="Contoh: 08123456789"
-                />
-              </div>
-
-              <div class="mb-4">
-                <label class="form-label small fw-semibold text-muted">Status Konfirmasi</label>
-                <select class="form-select" v-model="form.konfirmasi">
-                  <option value="Pending">Pending</option>
-                  <option value="Hadir">Hadir</option>
-                  <option value="Tidak Hadir">Tidak Hadir</option>
-                </select>
-              </div>
-
-              <div class="d-flex justify-content-end gap-2">
-                <button
-                  type="button"
-                  class="btn btn-light rounded-pill px-4"
-                  @click="closeModal"
-                  :disabled="isSubmitting"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-primary rounded-pill px-4"
-                  :disabled="isSubmitting"
-                >
-                  <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1"></span>
-                  {{ editingId ? 'Simpan Perubahan' : 'Tambah Tamu' }}
-                </button>
-              </div>
-            </form>
+            <div>
+              <h5 class="fw-bold mb-0 text-dark">
+                {{ editingId ? 'Ubah Tamu Undangan' : 'Tambah Tamu Undangan' }}
+              </h5>
+              <small class="text-muted">Kelola data tamu undangan pernikahan</small>
+            </div>
           </div>
+          <button
+            type="button"
+            class="btn-close"
+            aria-label="Close"
+            :disabled="isSubmitting"
+            @click="closeModal"
+          ></button>
         </div>
+
+        <!-- Alert Error -->
+        <div v-if="errorMessage" class="alert alert-danger py-2 small d-flex align-items-center gap-2 mb-3">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>{{ errorMessage }}</span>
+        </div>
+
+        <!-- Form -->
+        <form @submit.prevent="handleSubmit">
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-dark mb-1">
+              Nama Tamu <span class="text-danger">*</span>
+            </label>
+            <input
+              v-model="form.nama_tamu"
+              type="text"
+              class="form-control rounded-3"
+              placeholder="Contoh: Bpk. Hendra & Keluarga"
+              required
+              autofocus
+            />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-dark mb-1">Kategori / Kelompok</label>
+            <input
+              v-model="form.kategori"
+              type="text"
+              class="form-control rounded-3"
+              placeholder="Contoh: Keluarga / Sahabat / Rekan Kerja"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-dark mb-1">Kontak (WhatsApp)</label>
+            <input
+              v-model="form.kontak"
+              type="text"
+              class="form-control rounded-3"
+              placeholder="Contoh: 08123456789"
+            />
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold small text-dark mb-1">Status Konfirmasi</label>
+            <select v-model="form.konfirmasi" class="form-select rounded-3">
+              <option value="Pending">Pending</option>
+              <option value="Hadir">Hadir</option>
+              <option value="Tidak Hadir">Tidak Hadir</option>
+            </select>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+            <button
+              type="button"
+              class="btn btn-light rounded-pill px-3 px-sm-4 fw-semibold text-muted"
+              :disabled="isSubmitting"
+              @click="closeModal"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              class="btn btn-primary rounded-pill px-3 px-sm-4 fw-semibold shadow-sm"
+              :disabled="isSubmitting"
+            >
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+              <span v-else><i class="bi bi-save me-1"></i> Simpan</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.modal-backdrop-custom {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1050;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.modal-dialog-custom {
+  animation: slideDown 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+</style>
