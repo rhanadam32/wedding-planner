@@ -5,6 +5,7 @@ Aplikasi web modern untuk perencanaan pernikahan dan manajemen *cash flow* secar
 ---
 
 ## 📑 Daftar Isi
+
 1. [Fitur Utama](#-fitur-utama)
 2. [Teknologi yang Digunakan](#-teknologi-yang-digunakan)
 3. [Konfigurasi Google Sheets](#-1-konfigurasi-google-sheets)
@@ -16,6 +17,8 @@ Aplikasi web modern untuk perencanaan pernikahan dan manajemen *cash flow* secar
 9. [Troubleshooting & Tips](#-7-troubleshooting--tips)
 
 ---
+
+
 
 ## ✨ Fitur Utama
 
@@ -29,6 +32,8 @@ Aplikasi web modern untuk perencanaan pernikahan dan manajemen *cash flow* secar
 
 ---
 
+
+
 ## 🛠 Teknologi yang Digunakan
 
 - **Frontend**: [Vue 3](https://vuejs.org/) (Composition API + `<script setup>`), [TypeScript](https://www.typescriptlang.org/), [Vite](https://vitejs.dev/)
@@ -40,95 +45,134 @@ Aplikasi web modern untuk perencanaan pernikahan dan manajemen *cash flow* secar
 
 ---
 
+
+
 ## 📊 1. Konfigurasi Google Sheets
 
 Aplikasi membutuhkan satu file Google Spreadsheet yang berfungsi sebagai *database*. Buat Google Spreadsheet baru di Google Drive Anda (misal beri nama `Database Wedding Planner`), kemudian siapkan **5 sheet (tab)** dengan nama yang **persis** (case-sensitive) seperti berikut:
 
 ### Sheet 1: `Users`
+
 Digunakan untuk data login pengguna.
+
 - **Nama Tab**: `Users`
 - **Header Kolom (Baris 1)**:
-  | A | B | C | D |
-  | :--- | :--- | :--- | :--- |
+
+  | A          | B          | C      | D      |
+  | ---------- | ---------- | ------ | ------ |
   | `username` | `password` | `name` | `role` |
 
 - **Contoh Data (Baris 2)**:
-  | username | password | name | role |
-  | :--- | :--- | :--- | :--- |
-  | `admin` | `admin123` | `Raihan & Pasangan` | `Calon Pengantin` |
+
+  | username | password   | name                | role              |
+  | -------- | ---------- | ------------------- | ----------------- |
+  | `admin`  | `admin123` | `Raihan & Pasangan` | `Calon Pengantin` |
+
 
 ---
 
+
+
 ### Sheet 2: `Rencana`
+
 Digunakan untuk daftar checklist dan timeline tugas persiapan pernikahan.
+
 - **Nama Tab**: `Rencana`
 - **Header Kolom (Baris 1)**:
-  | A | B | C | D |
-  | :--- | :--- | :--- | :--- |
+
+  | A    | B              | C              | D        |
+  | ---- | -------------- | -------------- | -------- |
   | `id` | `TugasRencana` | `tgl_deadline` | `status` |
 
 - **Contoh Data (Baris 2 dst.)**:
-  | id | TugasRencana | tgl_deadline | status |
-  | :--- | :--- | :--- | :--- |
+
+  | id           | TugasRencana           | tgl_deadline | status    |
+  | ------------ | ---------------------- | ------------ | --------- |
   | `1712000001` | Booking Gedung Resepsi | `2026-10-01` | `selesai` |
   | `1712000002` | Fitting Baju Pengantin | `2026-10-15` | `pending` |
 
+
 > 📌 **Catatan**: 
+>
 > - Kolom `status` bernilai: `pending` atau `selesai`.
 > - Format kolom `tgl_deadline` disarankan teks bertipe tanggal `YYYY-MM-DD`.
 
 ---
 
+
+
 ### Sheet 3: `Transaksi`
+
 Digunakan untuk pencatatan anggaran dan riwayat pengeluaran/pemasukan biaya pernikahan.
+
 - **Nama Tab**: `Transaksi`
 - **Header Kolom (Baris 1)**:
-  | A | B | C | D | E |
-  | :--- | :--- | :--- | :--- | :--- |
+
+  | A              | B         | C            | D          | E              |
+  | -------------- | --------- | ------------ | ---------- | -------------- |
   | `id_transaksi` | `tanggal` | `Keterangan` | `Kategori` | `Kredit_Debit` |
 
 - **Contoh Data (Baris 2 dst.)**:
-  | id_transaksi | tanggal | Keterangan | Kategori | Kredit_Debit |
-  | :--- | :--- | :--- | :--- | :--- |
-  | `1712000003` | `2026-09-01` | DP Gedung Resepsi | Venue | `5000000` |
-  | `1712000004` | `2026-09-05` | DP Catering 500 Porsi | Katering | `8000000` |
+
+  | id_transaksi | tanggal      | Keterangan            | Kategori | Kredit_Debit |
+  | ------------ | ------------ | --------------------- | -------- | ------------ |
+  | `1712000003` | `2026-09-01` | DP Gedung Resepsi     | Venue    | `5000000`    |
+  | `1712000004` | `2026-09-05` | DP Catering 500 Porsi | Katering | `8000000`    |
+
 
 ---
 
+
+
 ### Sheet 4: `Tamu`
+
 Digunakan untuk data tamu undangan dan pelacakan status RSVP.
+
 - **Nama Tab**: `Tamu`
 - **Header Kolom (Baris 1)**:
-  | A | B | C | D | E |
-  | :--- | :--- | :--- | :--- | :--- |
+
+  | A    | B           | C          | D        | E            |
+  | ---- | ----------- | ---------- | -------- | ------------ |
   | `id` | `nama_tamu` | `kategori` | `kontak` | `konfirmasi` |
 
 - **Contoh Data (Baris 2 dst.)**:
-  | id | nama_tamu | kategori | kontak | konfirmasi |
-  | :--- | :--- | :--- | :--- | :--- |
-  | `1712000005` | Budi Santoso | Sahabat | `081234567890` | `Hadir` |
-  | `1712000006` | Siti Aminah | Keluarga | `089876543210` | `Pending` |
+
+  | id           | nama_tamu    | kategori | kontak         | konfirmasi |
+  | ------------ | ------------ | -------- | -------------- | ---------- |
+  | `1712000005` | Budi Santoso | Sahabat  | `081234567890` | `Hadir`    |
+  | `1712000006` | Siti Aminah  | Keluarga | `089876543210` | `Pending`  |
+
 
 > 📌 **Catatan**: 
+>
 > - Nilai kolom `konfirmasi`: `Hadir`, `Tidak Hadir`, atau `Pending`.
 > - Untuk kolom `kontak`, awali dengan tanda petik tunggal (contoh: `'081234567890`) agar angka `0` di awal nomor HP tidak otomatis terhapus oleh spreadsheet.
 
 ---
 
+
+
 ### Sheet 5: `Pengantin`
+
 Digunakan untuk menyimpan informasi profil kedua mempelai dan detail pernikahan.
+
 - **Nama Tab**: `Pengantin` (bisa juga dinamai `Akun` / `Pernikahan`)
 - **Header Kolom (Baris 1)**:
-  | A | B | C | D | E |
-  | :--- | :--- | :--- | :--- | :--- |
+
+  | A    | B                      | C                        | D                    | E        |
+  | ---- | ---------------------- | ------------------------ | -------------------- | -------- |
   | `id` | `calon_pengantin_pria` | `calon_pengantin_wanita` | `tanggal_pernikahan` | `Lokasi` |
 
 - **Contoh Data (Baris 2)**:
-  | id | calon_pengantin_pria | calon_pengantin_wanita | tanggal_pernikahan | Lokasi |
-  | :--- | :--- | :--- | :--- | :--- |
-  | `1` | Raihan | Aisyah | `2026-12-25` | Ballroom Hotel Grand Sahid, Jakarta |
+
+  | id  | calon_pengantin_pria | calon_pengantin_wanita | tanggal_pernikahan | Lokasi                              |
+  | --- | -------------------- | ---------------------- | ------------------ | ----------------------------------- |
+  | `1` | Raihan               | Ummi                   | `2026-12-25`       | Ballroom Hotel Grand Sahid, Jakarta |
+
 
 ---
+
+
 
 ## ⚙️ 2. Setting Google Apps Script
 
@@ -139,41 +183,47 @@ Google Apps Script bertindak sebagai backend REST API sederhana yang membaca dan
 1. Buka file Google Spreadsheet yang sudah Anda buat di atas.
 2. Pada menu bar atas, klik **Extensions** (atau **Ekstensi**) -> pilih **Apps Script**.
 3. Di dalam editor Apps Script:
-   - Hapus seluruh kode bawaan yang ada di file `Code.gs`.
-   - Buka file [`apps-script/Code.gs`](file:///D:/mini%20project/wedding%20planner/apps-script/Code.gs) pada repository ini, lalu **salin (copy) seluruh kodenya** dan **tempel (paste)** ke editor `Code.gs` di Google Apps Script.
+  - Hapus seluruh kode bawaan yang ada di file `Code.gs`.
+  - Buka file `[apps-script/Code.gs](file:///D:/mini%20project/wedding%20planner/apps-script/Code.gs)` pada repository ini, lalu **salin (copy) seluruh kodenya** dan **tempel (paste)** ke editor `Code.gs` di Google Apps Script.
 4. Klik ikon **Save (Simpan)** (atau tekan `Ctrl + S`).
 5. Ubah nama proyek di kiri atas (misal: `Wedding Planner API`).
 
+
+
 ### Konfigurasi Timezone (Penting)
+
 Pastikan zona waktu script sesuai dengan lokasi Anda agar format tanggal deadline dan transaksi akurat:
+
 1. Klik menu **Project Settings** (ikon gerigi ⚙️ di panel kiri Apps Script).
 2. Centang opsi **Show "appsscript.json" manifest file in editor**.
 3. Kembali ke tab editor berkas (ikon `< >`), buka file `appsscript.json`, dan pastikan timezone sudah sesuai (misal: `"timeZone": "Asia/Jakarta"`).
 
+
+
 ### Melakukan Deployment (Deploy sebagai Web App):
+
 1. Di kanan atas editor Apps Script, klik tombol biru **Deploy** -> pilih **New deployment** (Penerapan baru).
 2. Klik ikon gerigi (⚙️) di sebelah kiri *Select type*, lalu pilih **Web app**.
 3. Atur konfigurasi berikut:
-   - **Description**: `Wedding Planner API v1`
-   - **Execute as**: `Me (email-anda@gmail.com)` *(Aplikasi dijalankan atas nama akun Google Anda)*
-   - **Who has access**: **`Anyone`** *(PENTING: Pilih 'Anyone' agar frontend dapat mengakses endpoint tanpa error CORS / blokir otorisasi)*
+  - **Description**: `Wedding Planner API v1`
+  - **Execute as**: `Me (email-anda@gmail.com)` *(Aplikasi dijalankan atas nama akun Google Anda)*
+  - **Who has access**: `Anyone` *(PENTING: Pilih 'Anyone' agar frontend dapat mengakses endpoint tanpa error CORS / blokir otorisasi)*
 4. Klik tombol **Deploy**.
 5. Google akan meminta izin otorisasi akses:
-   - Klik **Authorize access**.
-   - Pilih akun Google Anda.
-   - Jika muncul peringatan *"Google hasn't verified this app"*, klik tautan **Advanced** di kiri bawah, lalu klik **Go to Untitled project (unsafe)**.
-   - Klik **Allow** untuk memberikan akses membaca dan menulis Google Sheets.
+  - Klik **Authorize access**.
+  - Pilih akun Google Anda.
+  - Jika muncul peringatan *"Google hasn't verified this app"*, klik tautan **Advanced** di kiri bawah, lalu klik **Go to Untitled project (unsafe)**.
+  - Klik **Allow** untuk memberikan akses membaca dan menulis Google Sheets.
 6. Setelah deployment selesai, salin **Web app URL** yang muncul (URL berakhiran `/exec`).
-   Contoh format URL:
-   ```text
-   https://script.google.com/macros/s/AKfycby...xyz/exec
-   ```
+  Contoh format URL:
 
 > ⚠️ **Catatan Penting Pembaruan Script**:
 > Jika di kemudian hari Anda melakukan perubahan pada `Code.gs`:
 > Klik **Deploy** -> **Manage deployments** -> klik ikon **Edit (Pensil)** -> ubah bagian **Version** menjadi **New version** -> klik **Deploy**. Jangan hanya klik Save, karena Web App hanya membaca versi hasil deploy!
 
 ---
+
+
 
 ## 🔑 3. Setting Environment Variable (`.env`)
 
@@ -185,20 +235,28 @@ Frontend membutuhkan URL Web App Google Apps Script untuk berkomunikasi dengan s
 
 ```env
 # frontend/.env
-VITE_API_URL=https://script.google.com/macros/s/AKfycby...xyz/exec
+VITE_API_URL= #api appscript anda sendiri
 ```
 
 > 💡 **Tips**: File `.env` ini secara otomatis diabaikan oleh Git (berada dalam `.gitignore`) sehingga kredensial deployment Anda tetap aman dan tidak terpublikasi ke publik.
 
 ---
 
+
+
 ## 🚀 4. Cara Menjalankan Frontend
 
+
+
 ### Prasyarat:
+
 - [Node.js](https://nodejs.org/) (versi 18.x atau yang lebih baru)
 - Paket manajer: `npm`, `pnpm`, atau `yarn`
 
+
+
 ### 1. Instalasi Dependensi
+
 Buka terminal / PowerShell, masuk ke direktori folder `frontend`, lalu jalankan perintah instalasi:
 
 ```bash
@@ -206,7 +264,10 @@ cd frontend
 npm install
 ```
 
+
+
 ### 2. Menjalankan Mode Development
+
 Untuk menjalankan aplikasi di komputer lokal:
 
 ```bash
@@ -216,6 +277,7 @@ npm run dev
 Setelah server Vite berjalan, buka browser dan akses URL lokal yang ditampilkan (default: [http://localhost:5173](http://localhost:5173)).
 
 ### 3. Build untuk Production
+
 Jika ingin melakukan build aset siap rilis (misalnya untuk di-deploy ke Vercel, Netlify, atau GitHub Pages):
 
 ```bash
@@ -227,6 +289,8 @@ npm run preview
 ```
 
 ---
+
+
 
 ## 📂 5. Struktur Folder
 
@@ -287,16 +351,22 @@ wedding-planner/
 
 ---
 
+
+
 ## 📖 6. Panduan Penggunaan (Cara Pakai)
 
 Setelah aplikasi berjalan di browser ([http://localhost:5173](http://localhost:5173)), ikuti alur penggunaan berikut:
 
 ### 1. Login Akun
+
 - Buka halaman utama aplikasi.
 - Masukkan **Username** dan **Password** yang telah Anda daftarkan di sheet `Users` Google Sheet (contoh: `admin` / `admin123`).
 - Klik tombol **Login**. Setelah berhasil, Anda akan dialihkan ke halaman Dashboard.
 
+
+
 ### 2. Atur Profil Pernikahan (Menu "Akun")
+
 - Sangat disarankan untuk melengkapi data mempelai terlebih dahulu melalui menu **Akun** di sidebar.
 - Masukkan:
   - Nama Calon Pengantin Pria
@@ -306,7 +376,10 @@ Setelah aplikasi berjalan di browser ([http://localhost:5173](http://localhost:5
 - Klik **Simpan Data**.
 - *Tanggal pernikahan yang Anda masukkan akan langsung memicu perhitungan countdown otomatis di Header dan Dashboard.*
 
+
+
 ### 3. Memantau Dashboard
+
 - Halaman **Dashboard** menyajikan ringkasan cepat:
   - **Sisa Waktu**: Hitung mundur hari menuju hari-H (misal: "85 Hari Menuju Hari-H").
   - **Progress Rencana**: Persentase tugas persiapan pernikahan yang sudah selesai.
@@ -314,37 +387,56 @@ Setelah aplikasi berjalan di browser ([http://localhost:5173](http://localhost:5
   - **Tamu Konfirmasi**: Perbandingan tamu yang sudah konfirmasi hadir dibanding total undangan.
   - Tabel ringkas rencana dan transaksi terbaru.
 
+
+
 ### 4. Manajemen Rencana (Menu "Rencana")
+
 - **Menambah Tugas**: Masukkan nama tugas (misal: *"Fitting Jas Pengantin"*) dan tenggat tanggal deadline, lalu klik **Tambah Rencana**.
 - **Ceklis Tugas**: Klik kotak centang status untuk mengubah status antara `pending` dan `selesai`.
 - **Menghapus Tugas**: Klik tombol hapus (ikon tempat sampah) untuk menghapus tugas yang dibatalkan.
 
+
+
 ### 5. Manajemen Transaksi (Menu "Transaksi")
+
 - **Mencatat Pengeluaran**: Klik tombol tambah transaksi, isi tanggal, keterangan pembayaran (misal: *"DP Fotografer"*), kategori (*Venue, Katering, Busana, Dokumentasi, dll.*), dan nominal.
 - **Filter & Rekap**: Pantau ringkasan total uang yang sudah dikeluarkan secara *real-time*.
 - **Edit & Hapus**: Anda dapat memperbarui nominal keterangan atau menghapus data transaksi jika terjadi salah input.
 
+
+
 ### 6. Manajemen Tamu Undangan (Menu "Tamu Undangan")
+
 - **Tambah Tamu**: Masukkan nama tamu, pilih kategori relasi (*Keluarga, Sahabat, Teman Kantor, Tetangga, dll.*), serta nomor WhatsApp/kontak.
 - **Update RSVP**: Ubah status kehadiran menjadi **Hadir**, **Tidak Hadir**, atau **Pending**.
 - **Pencarian & Filter**: Memudahkan memilah daftar tamu saat menyusun undangan fisik maupun digital.
 
+
+
 ### 7. Logout
+
 - Klik nama akun Anda atau tombol **Logout** di bagian header/sidebar untuk mengakhiri sesi.
 
 ---
 
+
+
 ## ❓ 7. Troubleshooting & Tips
 
-| Masalah | Penyebab Umum | Solusi |
-| :--- | :--- | :--- |
-| **Error: CORS policy / Network Error saat login** | Setting deployment Web App di Apps Script belum terbuka untuk umum. | Buka Apps Script -> **Deploy** -> **Manage Deployments** -> ubah **Who has access** menjadi **Anyone**, lalu Deploy ulang. |
-| **Pesan error: Sheet ... tidak ditemukan** | Nama tab pada Google Sheets berbeda dengan kode. | Pastikan nama tab persis: `Users`, `Rencana`, `Transaksi`, `Tamu`, dan `Pengantin` (perhatikan huruf kapital). |
-| **Nomor kontak tamu kehilangan angka `0` di depan** | Google Sheet mendeteksi nomor telepon sebagai angka/number. | Tambahkan tanda kutip satu `'` di awal nomor (contoh: `'08123456789`) atau ubah format kolom ke *Plain Text*. |
-| **Perubahan di `Code.gs` tidak ada efeknya** | Apps Script belum dibuatkan versi deployment baru. | Di Apps Script, buka **Deploy** -> **Manage Deployments** -> Edit -> ganti **Version** ke **New version** -> klik **Deploy**. |
-| **Error: `id` atau data tidak muncul** | Baris header (baris 1) di Google Sheet salah eja atau kosong. | Samakan persis nama header kolom pada baris 1 seperti panduan di [Konfigurasi Google Sheets](#-1-konfigurasi-google-sheets). |
+
+| Masalah                                                 | Penyebab Umum                                                       | Solusi                                                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Error: CORS policy / Network Error saat login**       | Setting deployment Web App di Apps Script belum terbuka untuk umum. | Buka Apps Script -> **Deploy** -> **Manage Deployments** -> ubah **Who has access** menjadi **Anyone**, lalu Deploy ulang.    |
+| **Pesan error: Sheet ... tidak ditemukan**              | Nama tab pada Google Sheets berbeda dengan kode.                    | Pastikan nama tab persis: `Users`, `Rencana`, `Transaksi`, `Tamu`, dan `Pengantin` (perhatikan huruf kapital).                |
+| **Nomor kontak tamu kehilangan angka** `0` **di depan** | Google Sheet mendeteksi nomor telepon sebagai angka/number.         | Tambahkan tanda kutip satu `'` di awal nomor (contoh: `'08123456789`) atau ubah format kolom ke *Plain Text*.                 |
+| **Perubahan di** `Code.gs` **tidak ada efeknya**        | Apps Script belum dibuatkan versi deployment baru.                  | Di Apps Script, buka **Deploy** -> **Manage Deployments** -> Edit -> ganti **Version** ke **New version** -> klik **Deploy**. |
+| **Error:** `id` **atau data tidak muncul**              | Baris header (baris 1) di Google Sheet salah eja atau kosong.       | Samakan persis nama header kolom pada baris 1 seperti panduan di [Konfigurasi Google Sheets](#-1-konfigurasi-google-sheets).  |
+
 
 ---
 
+
+
 ## 📄 Lisensi
+
 Proyek ini dibuat untuk keperluan *personal project* dan bebas dikembangkan lebih lanjut sesuai kebutuhan pernikahan Anda.
