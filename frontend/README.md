@@ -1,9 +1,29 @@
-# Vue 3 + TypeScript + Vite
+# 💍 Wedding Planner - Frontend
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Aplikasi web *frontend* untuk Wedding Planner, dibangun menggunakan **Vue 3**, **TypeScript**, dan **Vite** dengan styling **Bootstrap 5**.
 
-## Recommended Setup
+Dokumentasi lengkap mengenai konfigurasi database Google Sheets, backend Google Apps Script, pengaturan environment variable, dan panduan penggunaan dapat dilihat pada **[README Utama](../README.md)**.
 
-- [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (previously Volar) and disable Vetur
+## 🚀 Quick Start
 
-- Use [vue-tsc](https://github.com/vuejs/language-tools/tree/master/packages/tsc) for performing the same type checking from the command line, or for generating d.ts files for SFCs.
+1. **Salin konfigurasi environment**:
+   ```bash
+   cp .env.example .env
+   ```
+   Pastikan variabel `VITE_API_URL` sudah mengarah ke deployment Google Apps Script Anda.
+
+2. **Instal dependensi**:
+   ```bash
+   npm install
+   ```
+
+3. **Jalankan development server**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Build untuk production**:
+   ```bash
+   npm run build
+   npm run preview
+   ```
