@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
-import { authService, pengantinService, Pengantin } from '../../services/api';
+import { authService, pengantinService, Pengantin, User } from '../../services/api';
 
 const refreshWeddingData = inject<() => Promise<void>>('refreshWeddingData', () => Promise.resolve());
-const user = authService.getUser() || { name: 'Raihan', username: 'admin' };
+const user: User = authService.getUser() || { name: 'Pengantin', username: 'admin', id_user: '' };
 
 const isLoading = ref(true);
 const isSubmitting = ref(false);
@@ -12,6 +12,7 @@ const errorMessage = ref('');
 
 const profil = ref<Pengantin>({
   id: '',
+  id_user: user?.id_user ? String(user.id_user) : '',
   calon_pengantin_pria: '',
   calon_pengantin_wanita: '',
   tanggal_pernikahan: '',
@@ -22,14 +23,26 @@ const loadProfil = async () => {
   isLoading.value = true;
   errorMessage.value = '';
   try {
-    const data = await pengantinService.getPengantin();
+    const currentIdUser = user?.id_user;
+    const data = await pengantinService.getPengantin(currentIdUser);
     if (data) {
       profil.value = {
         id: data.id ? String(data.id) : '',
+        id_user: data.id_user ? String(data.id_user) : (currentIdUser ? String(currentIdUser) : ''),
         calon_pengantin_pria: data.calon_pengantin_pria || '',
         calon_pengantin_wanita: data.calon_pengantin_wanita || '',
         tanggal_pernikahan: data.tanggal_pernikahan || '',
         Lokasi: data.Lokasi || (data as any).lokasi || ''
+      };
+    } else {
+      // Belum ada data untuk id_user ini
+      profil.value = {
+        id: '',
+        id_user: currentIdUser ? String(currentIdUser) : '',
+        calon_pengantin_pria: '',
+        calon_pengantin_wanita: '',
+        tanggal_pernikahan: '',
+        Lokasi: ''
       };
     }
   } catch (err: any) {
@@ -51,6 +64,9 @@ const handleSimpan = async () => {
 
   isSubmitting.value = true;
   try {
+    if (user?.id_user) {
+      profil.value.id_user = String(user.id_user);
+    }
     const res = await pengantinService.savePengantin(profil.value);
     if (res && res.status === 'success') {
       successMessage.value = res.message || 'Data pernikahan berhasil disimpan!';
@@ -83,7 +99,7 @@ onMounted(() => {
       <h4 class="fw-bold mb-1 text-dark">
         <i class="bi bi-person-circle text-primary me-2"></i>Akun & Data Pernikahan
       </h4>
-      <p class="text-muted small mb-0">Informasi akun pengguna dan data acara pernikahan</p>
+      <p class="text-muted small mb-0">Informasi akun pengguna dan data acara pernikahan yang terpisah per akun (ID User: {{ user?.id_user || '-' }})</p>
     </div>
 
     <!-- Alert Notifikasi -->
@@ -114,8 +130,11 @@ onMounted(() => {
         <input type="text" class="form-control bg-light" :value="user.name || user.username" disabled />
       </div>
       <div class="col-md-6">
-        <label class="form-label small fw-semibold">Tanggal Pernikahan</label>
-        <input type="date" class="form-control" v-model="profil.tanggal_pernikahan" />
+        <label class="form-label small fw-semibold">ID User Akun</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light text-muted"><i class="bi bi-shield-lock"></i></span>
+          <input type="text" class="form-control bg-light text-primary fw-semibold" :value="user.id_user || '-'" disabled />
+        </div>
       </div>
       <div class="col-md-6">
         <label class="form-label small fw-semibold">Nama Calon Pengantin Pria</label>
@@ -135,7 +154,11 @@ onMounted(() => {
           v-model="profil.calon_pengantin_wanita"
         />
       </div>
-      <div class="col-12">
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold">Tanggal Pernikahan</label>
+        <input type="date" class="form-control" v-model="profil.tanggal_pernikahan" />
+      </div>
+      <div class="col-md-6">
         <label class="form-label small fw-semibold">Lokasi / Kota Acara</label>
         <input
           type="text"
@@ -144,10 +167,10 @@ onMounted(() => {
           v-model="profil.Lokasi"
         />
       </div>
-      <div class="col-12 text-end mt-3">
+      <div class="col-12 text-end mt-4">
         <button
           type="submit"
-          class="btn btn-primary rounded-pill px-4 fw-semibold"
+          class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm"
           :disabled="isSubmitting"
         >
           <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>

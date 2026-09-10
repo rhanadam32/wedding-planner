@@ -3,13 +3,24 @@ import Cookies from 'js-cookie';
 
 const Api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || '',
-
 });
+
+const jsonPlainHeaders = {
+    'Content-Type': 'text/plain;charset=utf-8'
+};
 
 export interface ApiResponse<T = any> {
     status: 'success' | 'error';
     message?: string;
     data?: T;
+}
+
+export interface User {
+    id_user?: string | number;
+    id?: string | number;
+    name: string;
+    role?: string;
+    username: string;
 }
 
 export const authService = {
@@ -19,9 +30,7 @@ export const authService = {
             username: credentials.username,
             password: credentials.password
         }), {
-            headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
-            }
+            headers: jsonPlainHeaders
         });
 
         if (response.data.status === 'success') {
@@ -38,9 +47,18 @@ export const authService = {
         Cookies.remove('user');
     },
 
-    getUser() {
+    getUser(): User | null {
         const user = Cookies.get('user');
-        return user ? JSON.parse(user) : null;
+        if (!user) return null;
+        try {
+            const parsed = JSON.parse(user);
+            if (!parsed.id_user && (parsed.id || parsed.username)) {
+                parsed.id_user = parsed.id || parsed.username;
+            }
+            return parsed;
+        } catch {
+            return null;
+        }
     },
 
     isAuthenticated() {
@@ -49,37 +67,62 @@ export const authService = {
 };
 
 // ========================================================
-// 1. Tipe Data / Interface untuk Rencana
+// 1. Tipe Data & Service untuk Rencana
 // ========================================================
 export interface RencanaItem {
     id: string | number;
+    id_user?: string | number;
     TugasRencana: string;
     tgl_deadline: string;
     status: 'selesai' | 'pending';
 }
-// ========================================================
-// 2. Service untuk CRUD Sheet Rencana
-// ========================================================
+
 export const rencanaService = {
-    // A. Ambil semua data rencana (GET)
-    async getRencana(): Promise<RencanaItem[]> {
-        const response = await Api.get('');
-        if (response.data.status === 'success') {
-            return response.data.data;
+    // A. Ambil data rencana (POST action atau GET fallback) terpisah per id_user
+    async getRencana(idUser?: string | number): Promise<RencanaItem[]> {
+        const uid = idUser ?? authService.getUser()?.id_user;
+        try {
+            const response = await Api.post('', JSON.stringify({
+                action: 'getRencana',
+                id_user: uid
+            }), {
+                headers: jsonPlainHeaders
+            });
+            if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
+                return response.data.data;
+            }
+        } catch (e) {
+            console.warn('POST getRencana error, mencoba GET...', e);
         }
+
+        try {
+            const response = await Api.get('', {
+                params: uid ? { id_user: uid } : {}
+            });
+            if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
+                return response.data.data;
+            }
+        } catch (err) {
+            console.error('Gagal mengambil data rencana via GET:', err);
+        }
+
         return [];
     },
-    // B. Tambah tugas rencana baru (POST)
-    async addRencana(payload: { TugasRencana: string; tgl_deadline?: string }) {
+
+    // B. Tambah tugas rencana baru (POST) dengan id_user
+    async addRencana(payload: { TugasRencana: string; tgl_deadline?: string; id_user?: string | number }) {
+        const uid = payload.id_user ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
             action: 'addRencana',
             TugasRencana: payload.TugasRencana,
-            tgl_deadline: payload.tgl_deadline || ''
+            tgl_deadline: payload.tgl_deadline || '',
+            id_user: uid
         }), {
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            headers: jsonPlainHeaders
         });
         return response.data;
     },
+
     // C. Update status selesai / pending (POST)
     async updateStatusRencana(id: string | number, status: 'selesai' | 'pending') {
         const response = await Api.post('', JSON.stringify({
@@ -87,28 +130,29 @@ export const rencanaService = {
             id: id,
             status: status
         }), {
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            headers: jsonPlainHeaders
         });
         return response.data;
     },
+
     // D. Hapus tugas rencana (POST)
     async deleteRencana(id: string | number) {
         const response = await Api.post('', JSON.stringify({
             action: 'deleteRencana',
             id: id
         }), {
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            headers: jsonPlainHeaders
         });
         return response.data;
     }
 };
 
-const jsonPlainHeaders = {
-    'Content-Type': 'text/plain;charset=utf-8'
-};
-
+// ========================================================
+// 2. Tipe Data & Service untuk Transaksi
+// ========================================================
 export interface Transaksi {
     id_transaksi?: string;
+    id_user?: string | number;
     tanggal: string;
     Keterangan: string;
     Kategori: string;
@@ -116,22 +160,26 @@ export interface Transaksi {
 }
 
 export const transaksiService = {
-    async getTransaksi(): Promise<Transaksi[]> {
+    async getTransaksi(idUser?: string | number): Promise<Transaksi[]> {
+        const uid = idUser ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
-            action: 'getTransaksi'
+            action: 'getTransaksi',
+            id_user: uid
         }), {
             headers: jsonPlainHeaders
         });
-        if (response.data.status === 'success') {
+        if (response.data && response.data.status === 'success') {
             return response.data.data ?? [];
         }
         return [];
     },
 
     async addTransaksi(payload: Omit<Transaksi, 'id_transaksi'>) {
+        const uid = payload.id_user ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
             action: 'addTransaksi',
-            ...payload
+            ...payload,
+            id_user: uid
         }), {
             headers: jsonPlainHeaders
         });
@@ -159,8 +207,12 @@ export const transaksiService = {
     }
 };
 
+// ========================================================
+// 3. Tipe Data & Service untuk Tamu
+// ========================================================
 export interface Tamu {
     id?: string;
+    id_user?: string | number;
     nama_tamu: string;
     kategori: string;
     kontak: string;
@@ -168,22 +220,26 @@ export interface Tamu {
 }
 
 export const TamuServices = {
-    async getTamu(): Promise<Tamu[]> {
+    async getTamu(idUser?: string | number): Promise<Tamu[]> {
+        const uid = idUser ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
-            action: 'getTamu'
+            action: 'getTamu',
+            id_user: uid
         }), {
             headers: jsonPlainHeaders
         });
-        if (response.data.status === 'success') {
+        if (response.data && response.data.status === 'success') {
             return response.data.data ?? [];
         }
         return [];
     },
 
     async addTamu(payload: Omit<Tamu, 'id'>) {
+        const uid = payload.id_user ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
             action: 'addTamu',
-            ...payload
+            ...payload,
+            id_user: uid
         }), {
             headers: jsonPlainHeaders
         });
@@ -211,8 +267,12 @@ export const TamuServices = {
     }
 };
 
+// ========================================================
+// 4. Tipe Data & Service untuk Pengantin / Akun
+// ========================================================
 export interface Pengantin {
     id?: string;
+    id_user?: string | number;
     calon_pengantin_pria: string;
     calon_pengantin_wanita: string;
     tanggal_pernikahan: string;
@@ -220,13 +280,15 @@ export interface Pengantin {
 }
 
 export const pengantinService = {
-    async getPengantin(): Promise<Pengantin | null> {
+    async getPengantin(idUser?: string | number): Promise<Pengantin | null> {
+        const uid = idUser ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
-            action: 'getPengantin'
+            action: 'getPengantin',
+            id_user: uid
         }), {
             headers: jsonPlainHeaders
         });
-        if (response.data.status === 'success') {
+        if (response.data && response.data.status === 'success') {
             if (Array.isArray(response.data.data)) {
                 return response.data.data[0] || null;
             }
@@ -236,9 +298,11 @@ export const pengantinService = {
     },
 
     async savePengantin(payload: Pengantin) {
+        const uid = payload.id_user ?? authService.getUser()?.id_user;
         const response = await Api.post('', JSON.stringify({
             action: 'savePengantin',
-            ...payload
+            ...payload,
+            id_user: uid
         }), {
             headers: jsonPlainHeaders
         });

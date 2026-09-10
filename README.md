@@ -58,15 +58,16 @@ Digunakan untuk data login pengguna.
 - **Nama Tab**: `Users`
 - **Header Kolom (Baris 1)**:
 
-  | A          | B          | C      | D      |
-  | ---------- | ---------- | ------ | ------ |
-  | `username` | `password` | `name` | `role` |
+  | A         | B          | C          | D      | E      |
+  | --------- | ---------- | ---------- | ------ | ------ |
+  | `id_user` | `username` | `password` | `name` | `role` |
 
-- **Contoh Data (Baris 2)**:
+- **Contoh Data (Baris 2 dst.)**:
 
-  | username | password   | name                | role              |
-  | -------- | ---------- | ------------------- | ----------------- |
-  | `admin`  | `admin123` | `Raihan & Pasangan` | `Calon Pengantin` |
+  | id_user | username | password   | name                | role              |
+  | ------- | -------- | ---------- | ------------------- | ----------------- |
+  | `1`     | `admin`  | `admin123` | `Raihan & Pasangan` | `Calon Pengantin` |
+  | `2`     | `budi`   | `budi123`  | `Budi & Pasangan`   | `Calon Pengantin` |
 
 
 ---
@@ -75,25 +76,26 @@ Digunakan untuk data login pengguna.
 
 ### Sheet 2: `Rencana`
 
-Digunakan untuk daftar checklist dan timeline tugas persiapan pernikahan.
+Digunakan untuk daftar checklist dan timeline tugas persiapan pernikahan (terpisah per akun berdasarkan `id_user`).
 
 - **Nama Tab**: `Rencana`
 - **Header Kolom (Baris 1)**:
 
-  | A    | B              | C              | D        |
-  | ---- | -------------- | -------------- | -------- |
-  | `id` | `TugasRencana` | `tgl_deadline` | `status` |
+  | A    | B         | C              | D              | E        |
+  | ---- | --------- | -------------- | -------------- | -------- |
+  | `id` | `id_user` | `TugasRencana` | `tgl_deadline` | `status` |
 
 - **Contoh Data (Baris 2 dst.)**:
 
-  | id           | TugasRencana           | tgl_deadline | status    |
-  | ------------ | ---------------------- | ------------ | --------- |
-  | `1712000001` | Booking Gedung Resepsi | `2026-10-01` | `selesai` |
-  | `1712000002` | Fitting Baju Pengantin | `2026-10-15` | `pending` |
+  | id           | id_user | TugasRencana           | tgl_deadline | status    |
+  | ------------ | ------- | ---------------------- | ------------ | --------- |
+  | `1712000001` | `1`     | Booking Gedung Resepsi | `2026-10-01` | `selesai` |
+  | `1712000002` | `1`     | Fitting Baju Pengantin | `2026-10-15` | `pending` |
 
 
 > 📌 **Catatan**: 
 >
+> - Kolom `id_user` berfungsi memisahkan checklist per akun pengguna.
 > - Kolom `status` bernilai: `pending` atau `selesai`.
 > - Format kolom `tgl_deadline` disarankan teks bertipe tanggal `YYYY-MM-DD`.
 
@@ -154,20 +156,20 @@ Digunakan untuk data tamu undangan dan pelacakan status RSVP.
 
 ### Sheet 5: `Pengantin`
 
-Digunakan untuk menyimpan informasi profil kedua mempelai dan detail pernikahan.
+Digunakan untuk menyimpan informasi profil kedua mempelai dan detail pernikahan (terpisah per akun berdasarkan `id_user`).
 
 - **Nama Tab**: `Pengantin` (bisa juga dinamai `Akun` / `Pernikahan`)
 - **Header Kolom (Baris 1)**:
 
-  | A    | B                      | C                        | D                    | E        |
-  | ---- | ---------------------- | ------------------------ | -------------------- | -------- |
-  | `id` | `calon_pengantin_pria` | `calon_pengantin_wanita` | `tanggal_pernikahan` | `Lokasi` |
+  | A    | B         | C                      | D                        | E                    | F        |
+  | ---- | --------- | ---------------------- | ------------------------ | -------------------- | -------- |
+  | `id` | `id_user` | `calon_pengantin_pria` | `calon_pengantin_wanita` | `tanggal_pernikahan` | `Lokasi` |
 
-- **Contoh Data (Baris 2)**:
+- **Contoh Data (Baris 2 dst.)**:
 
-  | id  | calon_pengantin_pria | calon_pengantin_wanita | tanggal_pernikahan | Lokasi                              |
-  | --- | -------------------- | ---------------------- | ------------------ | ----------------------------------- |
-  | `1` | Raihan               | Ummi                   | `2026-12-25`       | Ballroom Hotel Grand Sahid, Jakarta |
+  | id    | id_user | calon_pengantin_pria | calon_pengantin_wanita | tanggal_pernikahan | Lokasi                              |
+  | ----- | ------- | -------------------- | ---------------------- | ------------------ | ----------------------------------- |
+  | `P-1` | `1`     | Raihan               | Ummi                   | `2026-12-25`       | Ballroom Hotel Grand Sahid, Jakarta |
 
 
 ---

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { rencanaService, RencanaItem } from '../../services/api';
+import { authService, rencanaService, RencanaItem } from '../../services/api';
 
+const user = authService.getUser();
 const checklist = ref<RencanaItem[]>([]);
 const isLoading = ref(true);
 
@@ -17,7 +18,7 @@ const form = ref({
 const fetchRencana = async () => {
   isLoading.value = true;
   try {
-    const data = await rencanaService.getRencana();
+    const data = await rencanaService.getRencana(user?.id_user);
     checklist.value = data;
   } catch (error) {
     console.error('Gagal memuat data rencana:', error);
@@ -52,7 +53,8 @@ const handleSubmit = async () => {
   try {
     const res = await rencanaService.addRencana({
       TugasRencana: form.value.TugasRencana.trim(),
-      tgl_deadline: form.value.tgl_deadline
+      tgl_deadline: form.value.tgl_deadline,
+      id_user: user?.id_user
     });
 
     if (res && res.status === 'error') {
@@ -122,7 +124,10 @@ onMounted(() => {
         <h4 class="fw-bold mb-1 text-dark">
           <i class="bi bi-calendar2-check-fill text-primary me-2"></i>Rencana & Checklist Persiapan
         </h4>
-        <p class="text-muted small mb-0">Timeline dan daftar tugas persiapan pernikahan mandiri</p>
+        <p class="text-muted small mb-0">
+          Timeline dan daftar tugas khusus akun <strong class="text-primary">{{ user?.name || user?.username }}</strong>
+          <span v-if="user?.id_user" class="badge bg-light text-muted border ms-1">ID: {{ user.id_user }}</span>
+        </p>
       </div>
       <button 
         class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm"

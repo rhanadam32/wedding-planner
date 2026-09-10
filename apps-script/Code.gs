@@ -30,10 +30,21 @@ function doPost(e) {
       return doPostPengantin(body, ss);
     }
 
+    if (isRencanaAction(body.action)) {
+      return doPostRencana(body, ss);
+    }
+
     return doPostRencana(body, ss);
   } catch (err) {
     return responseJSON({ status: 'error', message: err.toString() });
   }
+}
+
+function isRencanaAction(action) {
+  return action === 'getRencana' ||
+    action === 'addRencana' ||
+    action === 'updateStatusRencana' ||
+    action === 'deleteRencana';
 }
 
 function isTransaksiAction(action) {
@@ -45,9 +56,9 @@ function isTransaksiAction(action) {
 
 function isTamuAction(action){
   return action === 'getTamu' ||
-  action === 'addTamu' ||
-  action === 'updateTamu' ||
-  action === 'deleteTamu'
+    action === 'addTamu' ||
+    action === 'updateTamu' ||
+    action === 'deleteTamu';
 }
 
 function isPengantinAction(action) {
@@ -60,17 +71,48 @@ function isPengantinAction(action) {
 
 // ==========================================
 // 2. FUNGSI KHUSUS RENCANA (Helper)
+// Header Sheet Rencana: id | id_user | TugasRencana | tgl_deadline | status
 // ==========================================
+function getRencanaSheet(ss) {
+  let sheet = ss.getSheetByName('Rencana');
+  if (!sheet) {
+    sheet = ss.insertSheet('Rencana');
+    sheet.appendRow(['id', 'id_user', 'TugasRencana', 'tgl_deadline', 'status']);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['id', 'id_user', 'TugasRencana', 'tgl_deadline', 'status']);
+  }
+  return sheet;
+}
+
+function ensureRencanaHeaders(sheet) {
+  const dataRange = sheet.getDataRange();
+  const rows = dataRange.getValues();
+  if (rows.length === 0) {
+    sheet.appendRow(['id', 'id_user', 'TugasRencana', 'tgl_deadline', 'status']);
+    return ['id', 'id_user', 'TugasRencana', 'tgl_deadline', 'status'];
+  }
+  const headers = rows[0].map(h => String(h).trim());
+  const idUserIdx = headers.findIndex(h => h.toLowerCase() === 'id_user');
+  if (idUserIdx === -1) {
+    // Sisipkan atau tambahkan kolom id_user jika belum ada di gsheet
+    sheet.getRange(1, headers.length + 1).setValue('id_user');
+    headers.push('id_user');
+  }
+  return headers;
+}
+
 function doGetRencana(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Rencana');
-
-  if (!sheet) return responseJSON({ status: 'error', message: 'Sheet Rencana tidak ditemukan' });
+  const sheet = getRencanaSheet(ss);
+  const headers = ensureRencanaHeaders(sheet);
 
   const rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
 
-  const headers = rows[0]; // ['id', 'TugasRencana', 'tgl_deadline', 'status']
+  const idUserParam = (e && e.parameter && e.parameter.id_user !== undefined && e.parameter.id_user !== null)
+    ? String(e.parameter.id_user).trim()
+    : null;
+
   const data = rows.slice(1).map(row => {
     let obj = {};
     headers.forEach((h, idx) => {
@@ -83,28 +125,92 @@ function doGetRencana(e) {
     return obj;
   });
 
+  if (idUserParam) {
+    const filtered = data.filter(item => String(item.id_user || '').trim() === idUserParam);
+    return responseJSON({ status: 'success', data: filtered });
+  }
+
   return responseJSON({ status: 'success', data: data });
 }
 
 function doPostRencana(body, ss) {
-  const sheet = ss.getSheetByName('Rencana');
+  const sheet = getRencanaSheet(ss);
   const action = body.action;
 
+  if (action === 'getRencana') {
+    const headers = ensureRencanaHeaders(sheet);
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
+
+    const targetIdUser = (body.id_user !== undefined && body.id_user !== null)
+      ? String(body.id_user).trim()
+      : null;
+
+    const data = rows.slice(1).map(row => {
+      let obj = {};
+      headers.forEach((h, idx) => {
+        if (h === 'tgl_deadline' && row[idx] instanceof Date) {
+          obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else {
+          obj[h] = row[idx];
+        }
+      });
+      return obj;
+    });
+
+    if (targetIdUser) {
+      const filtered = data.filter(item => String(item.id_user || '').trim() === targetIdUser);
+      return responseJSON({ status: 'success', data: filtered });
+    }
+
+    return responseJSON({ status: 'success', data: data });
+  }
+
   if (action === 'addRencana') {
+    const headers = ensureRencanaHeaders(sheet);
+    const getCol = (name) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+
+    const idCol = getCol('id') !== -1 ? getCol('id') : 0;
+    const idUserCol = getCol('id_user') !== -1 ? getCol('id_user') : 1;
+    const tugasCol = getCol('tugasrencana') !== -1 ? getCol('tugasrencana') : 2;
+    const tglCol = getCol('tgl_deadline') !== -1 ? getCol('tgl_deadline') : 3;
+    const statusCol = getCol('status') !== -1 ? getCol('status') : 4;
+
     const newId = new Date().getTime().toString();
-    sheet.appendRow([newId, body.TugasRencana, body.tgl_deadline || '', 'pending']);
+    const idUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : '';
+    const tugas = body.TugasRencana || '';
+    const tgl = body.tgl_deadline || '';
+
+    const newRow = new Array(headers.length).fill('');
+    newRow[idCol] = newId;
+    newRow[idUserCol] = idUser;
+    newRow[tugasCol] = tugas;
+    newRow[tglCol] = tgl;
+    newRow[statusCol] = 'pending';
+
+    sheet.appendRow(newRow);
     return responseJSON({
       status: 'success',
       message: 'Rencana berhasil ditambahkan',
-      data: { id: newId, TugasRencana: body.TugasRencana, tgl_deadline: body.tgl_deadline, status: 'pending' }
+      data: {
+        id: newId,
+        id_user: idUser,
+        TugasRencana: tugas,
+        tgl_deadline: tgl,
+        status: 'pending'
+      }
     });
   }
 
   if (action === 'updateStatusRencana') {
     const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim());
+    const idCol = headers.findIndex(h => h.toLowerCase() === 'id') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'id') : 0;
+    const statusCol = headers.findIndex(h => h.toLowerCase() === 'status') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'status') : 4;
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0].toString() === body.id.toString()) {
-        sheet.getRange(i + 1, 4).setValue(body.status);
+      if (data[i][idCol].toString() === body.id.toString()) {
+        sheet.getRange(i + 1, statusCol + 1).setValue(body.status);
         return responseJSON({ status: 'success', message: 'Status rencana berhasil diupdate' });
       }
     }
@@ -113,8 +219,11 @@ function doPostRencana(body, ss) {
 
   if (action === 'deleteRencana') {
     const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim());
+    const idCol = headers.findIndex(h => h.toLowerCase() === 'id') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'id') : 0;
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0].toString() === body.id.toString()) {
+      if (data[i][idCol].toString() === body.id.toString()) {
         sheet.deleteRow(i + 1);
         return responseJSON({ status: 'success', message: 'Tugas rencana berhasil dihapus' });
       }
@@ -128,10 +237,10 @@ function doPostRencana(body, ss) {
 // ==========================================
 // 3. FUNGSI KHUSUS TRANSAKSI (Helper)
 // Sheet: Transaksi
-// Header: id_transaksi | tanggal | Keterangan | Kategori | Kredit_Debit
+// Header: id_transaksi | tanggal | Keterangan | Kategori | Kredit_Debit (| id_user)
 // ==========================================
 function rowsToTransaksi(rows) {
-  const headers = rows[0];
+  const headers = rows[0].map(h => String(h).trim());
   return rows.slice(1).map(row => {
     const obj = {};
     headers.forEach((h, idx) => {
@@ -156,10 +265,23 @@ function doPostTransaksi(body, ss) {
   if (action === 'getTransaksi') {
     const rows = sheet.getDataRange().getValues();
     if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
-    return responseJSON({ status: 'success', data: rowsToTransaksi(rows) });
+
+    const headers = rows[0].map(h => String(h).trim());
+    const idUserCol = headers.findIndex(h => h.toLowerCase() === 'id_user');
+    const targetIdUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : null;
+
+    let list = rowsToTransaksi(rows);
+    if (targetIdUser && idUserCol !== -1) {
+      list = list.filter(item => String(item.id_user || '').trim() === targetIdUser);
+    }
+
+    return responseJSON({ status: 'success', data: list });
   }
 
   if (action === 'addTransaksi') {
+    const headers = sheet.getDataRange().getValues()[0].map(h => String(h).trim());
+    const idUserCol = headers.findIndex(h => h.toLowerCase() === 'id_user');
+
     const newId = new Date().getTime().toString();
     const tanggal = body.tanggal || '';
     const Keterangan = body.Keterangan || '';
@@ -167,13 +289,33 @@ function doPostTransaksi(body, ss) {
     const Kredit_Debit = body.Kredit_Debit !== undefined && body.Kredit_Debit !== null
       ? body.Kredit_Debit
       : '';
+    const idUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : '';
 
-    sheet.appendRow([newId, tanggal, Keterangan, Kategori, Kredit_Debit]);
+    if (idUserCol !== -1) {
+      const newRow = new Array(headers.length).fill('');
+      const idCol = headers.findIndex(h => h.toLowerCase() === 'id_transaksi');
+      const tglCol = headers.findIndex(h => h.toLowerCase() === 'tanggal');
+      const ketCol = headers.findIndex(h => h.toLowerCase() === 'keterangan');
+      const katCol = headers.findIndex(h => h.toLowerCase() === 'kategori');
+      const kdCol = headers.findIndex(h => h.toLowerCase() === 'kredit_debit');
+
+      newRow[idCol !== -1 ? idCol : 0] = newId;
+      newRow[tglCol !== -1 ? tglCol : 1] = tanggal;
+      newRow[ketCol !== -1 ? ketCol : 2] = Keterangan;
+      newRow[katCol !== -1 ? katCol : 3] = Kategori;
+      newRow[kdCol !== -1 ? kdCol : 4] = Kredit_Debit;
+      newRow[idUserCol] = idUser;
+      sheet.appendRow(newRow);
+    } else {
+      sheet.appendRow([newId, tanggal, Keterangan, Kategori, Kredit_Debit]);
+    }
+
     return responseJSON({
       status: 'success',
       message: 'Transaksi berhasil ditambahkan',
       data: {
         id_transaksi: newId,
+        id_user: idUser,
         tanggal: tanggal,
         Keterangan: Keterangan,
         Kategori: Kategori,
@@ -188,13 +330,20 @@ function doPostTransaksi(body, ss) {
     }
 
     const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim());
+    const idCol = headers.findIndex(h => h.toLowerCase() === 'id_transaksi') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'id_transaksi') : 0;
+    const tglCol = headers.findIndex(h => h.toLowerCase() === 'tanggal') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'tanggal') : 1;
+    const ketCol = headers.findIndex(h => h.toLowerCase() === 'keterangan') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'keterangan') : 2;
+    const katCol = headers.findIndex(h => h.toLowerCase() === 'kategori') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'kategori') : 3;
+    const kdCol = headers.findIndex(h => h.toLowerCase() === 'kredit_debit') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'kredit_debit') : 4;
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0].toString() === body.id_transaksi.toString()) {
+      if (data[i][idCol].toString() === body.id_transaksi.toString()) {
         const rowIndex = i + 1;
-        if (body.tanggal !== undefined) sheet.getRange(rowIndex, 2).setValue(body.tanggal);
-        if (body.Keterangan !== undefined) sheet.getRange(rowIndex, 3).setValue(body.Keterangan);
-        if (body.Kategori !== undefined) sheet.getRange(rowIndex, 4).setValue(body.Kategori);
-        if (body.Kredit_Debit !== undefined) sheet.getRange(rowIndex, 5).setValue(body.Kredit_Debit);
+        if (body.tanggal !== undefined) sheet.getRange(rowIndex, tglCol + 1).setValue(body.tanggal);
+        if (body.Keterangan !== undefined) sheet.getRange(rowIndex, ketCol + 1).setValue(body.Keterangan);
+        if (body.Kategori !== undefined) sheet.getRange(rowIndex, katCol + 1).setValue(body.Kategori);
+        if (body.Kredit_Debit !== undefined) sheet.getRange(rowIndex, kdCol + 1).setValue(body.Kredit_Debit);
         return responseJSON({ status: 'success', message: 'Transaksi berhasil diupdate' });
       }
     }
@@ -207,8 +356,11 @@ function doPostTransaksi(body, ss) {
     }
 
     const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim());
+    const idCol = headers.findIndex(h => h.toLowerCase() === 'id_transaksi') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'id_transaksi') : 0;
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0].toString() === body.id_transaksi.toString()) {
+      if (data[i][idCol].toString() === body.id_transaksi.toString()) {
         sheet.deleteRow(i + 1);
         return responseJSON({ status: 'success', message: 'Transaksi berhasil dihapus' });
       }
@@ -222,9 +374,8 @@ function doPostTransaksi(body, ss) {
 // ==========================================
 // 4. FUNGSI HELPER SHEET TAMU
 // ==========================================
-
 function rowsToTamu(rows) {
-  const headers = rows[0];
+  const headers = rows[0].map(h => String(h).trim());
   return rows.slice(1).map(row => {
     const obj = {};
     headers.forEach((h, idx) => {
@@ -245,12 +396,24 @@ function doPostTamu(body, ss){
   if (action === 'getTamu') {
     const rows = sheetTamu.getDataRange().getValues();
     if (rows.length <= 1) return responseJSON({ status: 'success', data: [] });
-    return responseJSON({ status: 'success', data: rowsToTamu(rows) });
+
+    const headers = rows[0].map(h => String(h).trim());
+    const idUserCol = headers.findIndex(h => h.toLowerCase() === 'id_user');
+    const targetIdUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : null;
+
+    let list = rowsToTamu(rows);
+    if (targetIdUser && idUserCol !== -1) {
+      list = list.filter(item => String(item.id_user || '').trim() === targetIdUser);
+    }
+    return responseJSON({ status: 'success', data: list });
   }
 
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
+
+    const headers = sheetTamu.getDataRange().getValues()[0].map(h => String(h).trim());
+    const idUserCol = headers.findIndex(h => h.toLowerCase() === 'id_user');
 
     if (action === 'addTamu') {
       const newId = new Date().getTime().toString();
@@ -258,14 +421,34 @@ function doPostTamu(body, ss){
       const kategori = body.kategori || '';
       const kontak = body.kontak ? `'` + body.kontak.toString().replace(/^'/, '') : '';
       const konfirmasi = body.konfirmasi || 'Pending';
+      const idUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : '';
 
-      sheetTamu.appendRow([newId, nama_tamu, kategori, kontak, konfirmasi]);
+      if (idUserCol !== -1) {
+        const newRow = new Array(headers.length).fill('');
+        const idCol = headers.findIndex(h => h.toLowerCase() === 'id');
+        const namaCol = headers.findIndex(h => h.toLowerCase() === 'nama_tamu');
+        const katCol = headers.findIndex(h => h.toLowerCase() === 'kategori');
+        const kontakCol = headers.findIndex(h => h.toLowerCase() === 'kontak');
+        const konfCol = headers.findIndex(h => h.toLowerCase() === 'konfirmasi');
+
+        newRow[idCol !== -1 ? idCol : 0] = newId;
+        newRow[namaCol !== -1 ? namaCol : 1] = nama_tamu;
+        newRow[katCol !== -1 ? katCol : 2] = kategori;
+        newRow[kontakCol !== -1 ? kontakCol : 3] = kontak;
+        newRow[konfCol !== -1 ? konfCol : 4] = konfirmasi;
+        newRow[idUserCol] = idUser;
+        sheetTamu.appendRow(newRow);
+      } else {
+        sheetTamu.appendRow([newId, nama_tamu, kategori, kontak, konfirmasi]);
+      }
+
       SpreadsheetApp.flush();
       return responseJSON({
         status: 'success',
         message: 'Tamu berhasil ditambahkan',
         data: {
           id: newId,
+          id_user: idUser,
           nama_tamu: nama_tamu,
           kategori: kategori,
           kontak: kontak.replace(/^'/, ''),
@@ -322,24 +505,53 @@ function doPostTamu(body, ss){
 
   return responseJSON({ status: 'error', message: 'Action tidak dikenal di modul Tamu' });
 }
+
 // ==========================================
 // 5. FUNGSI KHUSUS LOGIN
+// Mengembalikan id_user dari Sheet Users
 // ==========================================
 function handleLogin(body, ss) {
   const sheetUsers = ss.getSheetByName('Users');
+  if (!sheetUsers) {
+    return responseJSON({ status: 'error', message: 'Sheet Users tidak ditemukan' });
+  }
+
   const rows = sheetUsers.getDataRange().getValues();
-  const headers = rows[0];
+  if (rows.length <= 1) {
+    return responseJSON({ status: 'error', message: 'Data pengguna kosong' });
+  }
+
+  const headers = rows[0].map(h => String(h).trim());
 
   for (let i = 1; i < rows.length; i++) {
     const user = {};
     headers.forEach((h, idx) => user[h] = rows[i][idx]);
 
-    if (user.username.toString() === (body.username || '').toString().trim() &&
-        user.password.toString() === (body.password || '').toString().trim()) {
+    const inputUsername = (body.username || '').toString().trim();
+    const inputPassword = (body.password || '').toString().trim();
+
+    if (user.username && user.username.toString().trim() === inputUsername &&
+        user.password && user.password.toString().trim() === inputPassword) {
+
+      // Cari id_user dari header 'id_user' atau 'id' atau fallback ke username
+      let idUser = '';
+      if (user.id_user !== undefined && user.id_user !== null && String(user.id_user).trim() !== '') {
+        idUser = String(user.id_user).trim();
+      } else if (user.id !== undefined && user.id !== null && String(user.id).trim() !== '') {
+        idUser = String(user.id).trim();
+      } else {
+        idUser = user.username.toString().trim();
+      }
+
       return responseJSON({
         status: 'success',
         token: Utilities.base64Encode(user.username + ':' + new Date().getTime()),
-        user: { name: user.name, role: user.role, username: user.username }
+        user: {
+          id_user: idUser,
+          name: user.name || user.username,
+          role: user.role || 'user',
+          username: user.username
+        }
       });
     }
   }
@@ -348,7 +560,7 @@ function handleLogin(body, ss) {
 
 // ==========================================
 // 6. FUNGSI HELPER SHEET PENGANTIN / AKUN
-// Field: id, calon_pengantin_pria, calon_pengantin_wanita, tanggal_pernikahan, Lokasi
+// Header: id | id_user | calon_pengantin_pria | calon_pengantin_wanita | tanggal_pernikahan | Lokasi
 // ==========================================
 function getPengantinSheet(ss) {
   let sheet = ss.getSheetByName('Pengantin');
@@ -360,11 +572,26 @@ function getPengantinSheet(ss) {
   }
   if (!sheet) {
     sheet = ss.insertSheet('Pengantin');
-    sheet.appendRow(['id', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
+    sheet.appendRow(['id', 'id_user', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
   } else if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['id', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
+    sheet.appendRow(['id', 'id_user', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
   }
   return sheet;
+}
+
+function ensurePengantinHeaders(sheet) {
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length === 0) {
+    sheet.appendRow(['id', 'id_user', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi']);
+    return ['id', 'id_user', 'calon_pengantin_pria', 'calon_pengantin_wanita', 'tanggal_pernikahan', 'Lokasi'];
+  }
+  const headers = rows[0].map(h => String(h).trim());
+  const idUserIdx = headers.findIndex(h => h.toLowerCase() === 'id_user');
+  if (idUserIdx === -1) {
+    sheet.getRange(1, headers.length + 1).setValue('id_user');
+    headers.push('id_user');
+  }
+  return headers;
 }
 
 function rowsToPengantin(rows) {
@@ -373,7 +600,7 @@ function rowsToPengantin(rows) {
   return rows.slice(1).map(row => {
     const obj = {};
     headers.forEach((h, idx) => {
-      if ((h === 'tanggal_pernikahan' || h.toLowerCase() === 'tanggal_pernikahan') && row[idx] instanceof Date) {
+      if ((h.toLowerCase() === 'tanggal_pernikahan') && row[idx] instanceof Date) {
         obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
       } else {
         obj[h] = row[idx];
@@ -389,41 +616,68 @@ function doPostPengantin(body, ss) {
     return responseJSON({ status: 'error', message: 'Sheet Pengantin/Akun tidak ditemukan' });
   }
 
+  const headers = ensurePengantinHeaders(sheet);
   const action = body.action;
 
+  // A. Ambil profil pengantin berdasarkan id_user
   if (action === 'getPengantin' || action === 'getAkun') {
     const rows = sheet.getDataRange().getValues();
     if (rows.length <= 1) return responseJSON({ status: 'success', data: null });
+
     const list = rowsToPengantin(rows);
+    const targetIdUser = (body.id_user !== undefined && body.id_user !== null)
+      ? String(body.id_user).trim()
+      : '';
+
+    if (targetIdUser) {
+      const match = list.find(item => String(item.id_user || '').trim() === targetIdUser);
+      return responseJSON({ status: 'success', data: match || null });
+    }
+
+    // Jika tanpa id_user (misal akun default), kembalikan baris pertama jika ada
     return responseJSON({ status: 'success', data: list.length > 0 ? list[0] : null });
   }
 
+  // B. Simpan / update profil pengantin terpisah per id_user
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
 
     const rows = sheet.getDataRange().getValues();
-    const headers = rows[0].map(h => String(h).trim());
+    const curHeaders = rows[0].map(h => String(h).trim());
 
     const getColIndex = (name) => {
       const target = name.toLowerCase();
-      const idx = headers.findIndex(h => h.toLowerCase() === target);
-      return idx !== -1 ? idx : -1;
+      return curHeaders.findIndex(h => h.toLowerCase() === target);
     };
 
     const idCol = getColIndex('id') !== -1 ? getColIndex('id') : 0;
-    const priaCol = getColIndex('calon_pengantin_pria') !== -1 ? getColIndex('calon_pengantin_pria') : 1;
-    const wanitaCol = getColIndex('calon_pengantin_wanita') !== -1 ? getColIndex('calon_pengantin_wanita') : 2;
-    const tglCol = getColIndex('tanggal_pernikahan') !== -1 ? getColIndex('tanggal_pernikahan') : 3;
-    const lokasiCol = getColIndex('Lokasi') !== -1 ? getColIndex('Lokasi') : 4;
+    const idUserCol = getColIndex('id_user') !== -1 ? getColIndex('id_user') : 1;
+    const priaCol = getColIndex('calon_pengantin_pria') !== -1 ? getColIndex('calon_pengantin_pria') : 2;
+    const wanitaCol = getColIndex('calon_pengantin_wanita') !== -1 ? getColIndex('calon_pengantin_wanita') : 3;
+    const tglCol = getColIndex('tanggal_pernikahan') !== -1 ? getColIndex('tanggal_pernikahan') : 4;
+    const lokasiCol = getColIndex('Lokasi') !== -1 ? getColIndex('Lokasi') : 5;
 
+    const targetIdUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : '';
     const pria = body.calon_pengantin_pria !== undefined ? body.calon_pengantin_pria : '';
     const wanita = body.calon_pengantin_wanita !== undefined ? body.calon_pengantin_wanita : '';
     const tgl = body.tanggal_pernikahan !== undefined ? body.tanggal_pernikahan : '';
     const lokasi = body.Lokasi !== undefined ? body.Lokasi : (body.lokasi !== undefined ? body.lokasi : '');
 
     let targetRowIndex = -1;
-    if (body.id) {
+
+    // 1. Cari berdasarkan id_user terlebih dahulu agar akun terpisah
+    if (targetIdUser && idUserCol !== -1) {
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][idUserCol] != null && String(rows[i][idUserCol]).trim() === targetIdUser) {
+          targetRowIndex = i + 1;
+          break;
+        }
+      }
+    }
+
+    // 2. Jika belum ditemukan dan ada body.id, cari berdasarkan id
+    if (targetRowIndex === -1 && body.id) {
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][idCol] != null && String(rows[i][idCol]).trim() === String(body.id).trim()) {
           targetRowIndex = i + 1;
@@ -432,28 +686,26 @@ function doPostPengantin(body, ss) {
       }
     }
 
-    // Jika tidak ditemukan ID yang cocok tapi sudah ada baris data, update baris data pertama
-    if (targetRowIndex === -1 && rows.length > 1) {
-      targetRowIndex = 2;
-    }
-
     let finalId = body.id;
 
     if (targetRowIndex !== -1) {
-      finalId = rows[targetRowIndex - 1][idCol] || body.id || '1';
+      // Update data baris milik user yang bersangkutan
+      finalId = rows[targetRowIndex - 1][idCol] || body.id || ('P-' + new Date().getTime());
       sheet.getRange(targetRowIndex, idCol + 1).setValue(finalId);
+      if (idUserCol !== -1 && targetIdUser) {
+        sheet.getRange(targetRowIndex, idUserCol + 1).setValue(targetIdUser);
+      }
       sheet.getRange(targetRowIndex, priaCol + 1).setValue(pria);
       sheet.getRange(targetRowIndex, wanitaCol + 1).setValue(wanita);
       sheet.getRange(targetRowIndex, tglCol + 1).setValue(tgl);
       sheet.getRange(targetRowIndex, lokasiCol + 1).setValue(lokasi);
     } else {
-      finalId = body.id || '1';
-      const maxCols = Math.max(headers.length, 5);
-      const newRow = [];
-      for (let c = 0; c < maxCols; c++) {
-        newRow.push('');
-      }
+      // Buat baris baru untuk akun user ini (tidak menimpa data akun lain)
+      finalId = body.id || ('P-' + new Date().getTime());
+      const maxCols = Math.max(curHeaders.length, 6);
+      const newRow = new Array(maxCols).fill('');
       newRow[idCol] = finalId;
+      if (idUserCol !== -1) newRow[idUserCol] = targetIdUser;
       newRow[priaCol] = pria;
       newRow[wanitaCol] = wanita;
       newRow[tglCol] = tgl;
@@ -467,6 +719,7 @@ function doPostPengantin(body, ss) {
       message: 'Data pernikahan berhasil disimpan',
       data: {
         id: finalId,
+        id_user: targetIdUser,
         calon_pengantin_pria: pria,
         calon_pengantin_wanita: wanita,
         tanggal_pernikahan: tgl,

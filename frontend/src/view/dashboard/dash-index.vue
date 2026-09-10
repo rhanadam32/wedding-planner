@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, inject, computed, onMounted } from 'vue';
-import { authService, transaksiService, rencanaService, TamuServices, Transaksi, RencanaItem, Pengantin } from '../../services/api';
+import { authService, transaksiService, rencanaService, TamuServices, Transaksi, RencanaItem, Pengantin, User } from '../../services/api';
 
-const user = authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin' };
+const user: User = authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin', username: 'user', id_user: '' };
 
 // ============================================================
 // Inject dari dashboard.vue (layout parent)
@@ -142,7 +142,7 @@ const formatRupiah = (value: number | string) => {
 const fetchTransaksi = async () => {
   isLoadingTransaksi.value = true;
   try {
-    const data = await transaksiService.getTransaksi();
+    const data = await transaksiService.getTransaksi(user?.id_user);
     transaksiTerakhir.value = [...data].slice(-4).reverse();
     totalPengeluaran.value = data.reduce((sum, item) => sum + (Number(item.Kredit_Debit) || 0), 0);
     jumlahTransaksi.value = data.length;
@@ -156,7 +156,7 @@ const fetchTransaksi = async () => {
 const fetchRencana = async () => {
   isLoadingRencana.value = true;
   try {
-    const data = await rencanaService.getRencana();
+    const data = await rencanaService.getRencana(user?.id_user);
     rencanaList.value = data;
     jumlahRencana.value = data.length;
     jumlahSelesai.value = data.filter(r => r.status === 'selesai').length;
@@ -170,7 +170,7 @@ const fetchRencana = async () => {
 const fetchTamu = async () => {
   isLoadingTamu.value = true;
   try {
-    const data = await TamuServices.getTamu();
+    const data = await TamuServices.getTamu(user?.id_user);
     jumlahTamu.value = data.length;
     jumlahTamuHadir.value = data.filter(t => t.konfirmasi === 'Hadir').length;
   } catch (error) {
@@ -199,7 +199,7 @@ onMounted(async () => {
           <p class="text-muted mb-0 d-flex flex-wrap gap-2 gap-sm-3 small mt-2">
             <span><i class="bi bi-calendar-event me-1 text-primary"></i>{{ tanggalPernikahan }}</span>
             <span><i class="bi bi-geo-alt me-1 text-danger"></i>{{ lokasiPernikahan }}</span>
-            <span><i class="bi bi-person me-1 text-success"></i>Akun: {{ user.name }}</span>
+            <span><i class="bi bi-person me-1 text-success"></i>Akun: {{ user.name }} <span v-if="user.id_user" class="badge bg-light text-muted border ms-1">ID: {{ user.id_user }}</span></span>
           </p>
         </div>
 
