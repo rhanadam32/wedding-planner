@@ -22,12 +22,13 @@ Aplikasi web modern untuk perencanaan pernikahan dan manajemen *cash flow* secar
 
 ## ✨ Fitur Utama
 
-- 🔐 **Autentikasi Pengguna**: Sistem login berbasis token sederhana yang tersimpan di Google Sheet `Users`.
+- 🔐 **Autentikasi Pengguna**: Sistem login berbasis token sederhana yang tersimpan di Google Sheet `Users`. Setiap user mendapat `id_user` unik.
+- 👤 **Isolasi Data per Akun (`id_user`)**: Rencana, Transaksi, Tamu, dan Pengantin tersimpan terpisah per akun. Setiap halaman menampilkan badge `ID: {{ id_user }}` akun aktif dan hanya memuat data milik akun tersebut (filter server + filter client-side).
 - ⏳ **Countdown Hari-H**: Penghitungan otomatis sisa hari menuju tanggal pernikahan di Dashboard dan Header.
-- 📋 **Manajemen Rencana (Checklist)**: Daftar tugas persiapan pernikahan, deadline waktu, serta toggle status selesai/pending.
-- 💰 **Pencatatan Transaksi & Keuangan**: Tracking pengeluaran pernikahan berdasarkan kategori (Venue, Katering, Dekorasi, Dokumentasi, dll.) serta ringkasan total biaya.
-- 👥 **Manajemen Tamu Undangan (RSVP)**: Daftar nama tamu, kategori relasi, nomor kontak/WhatsApp, dan konfirmasi kehadiran (*Hadir*, *Tidak Hadir*, *Pending*).
-- 👰🤵 **Profil Pernikahan**: Pengaturan nama kedua mempelai, tanggal hari-H, dan lokasi acara.
+- 📋 **Manajemen Rencana (Checklist)**: Daftar tugas persiapan pernikahan, deadline waktu, toggle status selesai/pending, tombol **Segarkan**, serta normalisasi header yang toleran (`TugasRencana`/`tugas`/`rencana`, `tgl_deadline`/`deadline`/`target`, dll.) dengan fallback otomatis bila filter backend kosong.
+- 💰 **Pencatatan Transaksi & Keuangan**: Tracking pengeluaran pernikahan berdasarkan kategori serta **Tipe Debit (+) / Kredit (−)** via radio button. Nominal Kredit disimpan sebagai nilai negatif, ditampilkan hijau (Debit) / merah (Kredit) lengkap dengan badge tipe.
+- 👥 **Manajemen Tamu Undangan (RSVP)**: Daftar nama tamu, kategori relasi, nomor kontak/WhatsApp, konfirmasi kehadiran (*Hadir*, *Tidak Hadir*, *Pending*), dan kolom `ID User` di tabel desktop + badge ID di tampilan mobile.
+- 👰🤵 **Profil Pernikahan**: Pengaturan nama kedua mempelai, tanggal hari-H, dan lokasi acara (satu baris profil per `id_user`, tidak menimpa akun lain).
 - 📱 **Responsif & Mobile-Friendly**: Tampilan dashboard yang nyaman diakses melalui smartphone, tablet, maupun desktop.
 
 ---
@@ -105,21 +106,27 @@ Digunakan untuk daftar checklist dan timeline tugas persiapan pernikahan (terpis
 
 ### Sheet 3: `Transaksi`
 
-Digunakan untuk pencatatan anggaran dan riwayat pengeluaran/pemasukan biaya pernikahan.
+Digunakan untuk pencatatan anggaran dan riwayat pengeluaran/pemasukan biaya pernikahan (terpisah per akun berdasarkan `id_user`).
 
 - **Nama Tab**: `Transaksi`
 - **Header Kolom (Baris 1)**:
 
-  | A              | B         | C            | D          | E              |
-  | -------------- | --------- | ------------ | ---------- | -------------- |
-  | `id_transaksi` | `tanggal` | `Keterangan` | `Kategori` | `Kredit_Debit` |
+  | A              | B         | C            | D          | E              | F         |
+  | -------------- | --------- | ------------ | ---------- | -------------- | --------- |
+  | `id_transaksi` | `tanggal` | `Keterangan` | `Kategori` | `Kredit_Debit` | `id_user` |
 
 - **Contoh Data (Baris 2 dst.)**:
 
-  | id_transaksi | tanggal      | Keterangan            | Kategori | Kredit_Debit |
-  | ------------ | ------------ | --------------------- | -------- | ------------ |
-  | `1712000003` | `2026-09-01` | DP Gedung Resepsi     | Venue    | `5000000`    |
-  | `1712000004` | `2026-09-05` | DP Catering 500 Porsi | Katering | `8000000`    |
+  | id_transaksi | tanggal      | Keterangan            | Kategori | Kredit_Debit | id_user |
+  | ------------ | ------------ | --------------------- | -------- | ------------ | ------- |
+  | `1712000003` | `2026-09-01` | DP Gedung Resepsi     | Venue    | `5000000`    | `1`     |
+  | `1712000004` | `2026-09-05` | DP Catering 500 Porsi | Katering | `-2000000`   | `1`     |
+
+
+> 📌 **Catatan**:
+>
+> - Kolom `id_user` berfungsi memisahkan transaksi per akun pengguna.
+> - Nilai `Kredit_Debit`: positif = **Debit** ( Pemasukan/masuk, tampil hijau), negatif = **Kredit** (pengeluaran, tampil merah). Dipilih via radio button Debit/Kredit di form frontend.
 
 
 ---
@@ -128,25 +135,26 @@ Digunakan untuk pencatatan anggaran dan riwayat pengeluaran/pemasukan biaya pern
 
 ### Sheet 4: `Tamu`
 
-Digunakan untuk data tamu undangan dan pelacakan status RSVP.
+Digunakan untuk data tamu undangan dan pelacakan status RSVP (terpisah per akun berdasarkan `id_user`).
 
 - **Nama Tab**: `Tamu`
 - **Header Kolom (Baris 1)**:
 
-  | A    | B           | C          | D        | E            |
-  | ---- | ----------- | ---------- | -------- | ------------ |
-  | `id` | `nama_tamu` | `kategori` | `kontak` | `konfirmasi` |
+  | A    | B           | C          | D        | E            | F         |
+  | ---- | ----------- | ---------- | -------- | ------------ | --------- |
+  | `id` | `nama_tamu` | `kategori` | `kontak` | `konfirmasi` | `id_user` |
 
 - **Contoh Data (Baris 2 dst.)**:
 
-  | id           | nama_tamu    | kategori | kontak         | konfirmasi |
-  | ------------ | ------------ | -------- | -------------- | ---------- |
-  | `1712000005` | Budi Santoso | Sahabat  | `081234567890` | `Hadir`    |
-  | `1712000006` | Siti Aminah  | Keluarga | `089876543210` | `Pending`  |
+  | id           | nama_tamu    | kategori | kontak         | konfirmasi | id_user |
+  | ------------ | ------------ | -------- | -------------- | ---------- | ------- |
+  | `1712000005` | Budi Santoso | Sahabat  | `081234567890` | `Hadir`    | `1`     |
+  | `1712000006` | Siti Aminah  | Keluarga | `089876543210` | `Pending`  | `1`     |
 
 
-> 📌 **Catatan**: 
+> 📌 **Catatan**:
 >
+> - Kolom `id_user` berfungsi memisahkan daftar tamu per akun pengguna (filter di sisi backend + verifikasi di sisi frontend).
 > - Nilai kolom `konfirmasi`: `Hadir`, `Tidak Hadir`, atau `Pending`.
 > - Untuk kolom `kontak`, awali dengan tanda petik tunggal (contoh: `'081234567890`) agar angka `0` di awal nomor HP tidak otomatis terhapus oleh spreadsheet.
 
@@ -364,6 +372,7 @@ Setelah aplikasi berjalan di browser ([http://localhost:5173](http://localhost:5
 - Buka halaman utama aplikasi.
 - Masukkan **Username** dan **Password** yang telah Anda daftarkan di sheet `Users` Google Sheet (contoh: `admin` / `admin123`).
 - Klik tombol **Login**. Setelah berhasil, Anda akan dialihkan ke halaman Dashboard.
+- Saat login berhasil, backend mengembalikan `id_user` (diambil dari kolom `id_user`/`id` di sheet `Users`, fallback ke `username`) yang disimpan di cookie bersama token. Seluruh request berikutnya (`getRencana`, `getTransaksi`, `getTamu`, `getPengantin`, dsb.) menyertakan `id_user` ini sehingga data selalu terisolasi per akun.
 
 
 
@@ -393,23 +402,29 @@ Setelah aplikasi berjalan di browser ([http://localhost:5173](http://localhost:5
 
 ### 4. Manajemen Rencana (Menu "Rencana")
 
-- **Menambah Tugas**: Masukkan nama tugas (misal: *"Fitting Jas Pengantin"*) dan tenggat tanggal deadline, lalu klik **Tambah Rencana**.
+- Daftar tugas **difilter menurut `id_user`** — tiap akun hanya melihat checklist miliknya. Header halaman menampilkan nama akun aktif + badge `ID: <id_user>`, dan tiap item menampilkan badge ID pemiliknya.
+- **Menambah Tugas**: Masukkan nama tugas (misal: *"Fitting Jas Pengantin"*) dan tenggat tanggal deadline, lalu klik **Tambah Tugas**. Data otomatis tersimpan dengan `id_user` akun yang sedang login.
 - **Ceklis Tugas**: Klik kotak centang status untuk mengubah status antara `pending` dan `selesai`.
+- **Segarkan**: Klik tombol **Segarkan** untuk memuat ulang data terbaru dari Google Sheet.
 - **Menghapus Tugas**: Klik tombol hapus (ikon tempat sampah) untuk menghapus tugas yang dibatalkan.
 
 
 
 ### 5. Manajemen Transaksi (Menu "Transaksi")
 
-- **Mencatat Pengeluaran**: Klik tombol tambah transaksi, isi tanggal, keterangan pembayaran (misal: *"DP Fotografer"*), kategori (*Venue, Katering, Busana, Dokumentasi, dll.*), dan nominal.
+- Daftar transaksi **difilter menurut `id_user`** dan menampilkan kolom **ID User** di tabel desktop (serta info pemilik di tampilan mobile).
+- **Mencatat Pengeluaran**: Klik tombol **Catat Pengeluaran**, isi tanggal, keterangan pembayaran (misal: *"DP Fotografer"*), kategori (*Venue, Katering, Busana, Dokumentasi, dll.*), pilih **Tipe Transaksi** via radio button **Debit (+)** / **Kredit (−)**, lalu isi nominal (selalu angka positif — tanda negatif otomatis untuk Kredit).
+- **Tampilan Nominal**: Debit tampil hijau dengan badge `Debit`, Kredit tampil merah dengan badge `Kredit` (nilai Kredit disimpan negatif, misal `-2000000`).
 - **Filter & Rekap**: Pantau ringkasan total uang yang sudah dikeluarkan secara *real-time*.
-- **Edit & Hapus**: Anda dapat memperbarui nominal keterangan atau menghapus data transaksi jika terjadi salah input.
+- **Edit & Hapus**: Anda dapat memperbarui tipe, nominal, keterangan, atau menghapus data transaksi jika terjadi salah input.
 
 
 
 ### 6. Manajemen Tamu Undangan (Menu "Tamu Undangan")
 
-- **Tambah Tamu**: Masukkan nama tamu, pilih kategori relasi (*Keluarga, Sahabat, Teman Kantor, Tetangga, dll.*), serta nomor WhatsApp/kontak.
+- Daftar tamu **ditampilkan menurut `id_user`** — tiap akun hanya melihat tamu miliknya (filter di backend `getTamu` + verifikasi ulang di frontend). Header halaman menampilkan nama akun aktif + badge `ID: <id_user>`.
+- **Tambah Tamu**: Masukkan nama tamu, kategori relasi (*Keluarga, Sahabat, Teman Kantor, Tetangga, dll.*), serta nomor WhatsApp/kontak. Data otomatis tersimpan dengan `id_user` akun yang sedang login.
+- **Kolom ID User**: Tabel desktop memiliki kolom **ID User**, tampilan mobile (card) menampilkan badge `ID: <id_user>` di tiap kartu tamu.
 - **Update RSVP**: Ubah status kehadiran menjadi **Hadir**, **Tidak Hadir**, atau **Pending**.
 - **Pencarian & Filter**: Memudahkan memilah daftar tamu saat menyusun undangan fisik maupun digital.
 
@@ -433,6 +448,7 @@ Setelah aplikasi berjalan di browser ([http://localhost:5173](http://localhost:5
 | **Nomor kontak tamu kehilangan angka** `0` **di depan** | Google Sheet mendeteksi nomor telepon sebagai angka/number.         | Tambahkan tanda kutip satu `'` di awal nomor (contoh: `'08123456789`) atau ubah format kolom ke *Plain Text*.                 |
 | **Perubahan di** `Code.gs` **tidak ada efeknya**        | Apps Script belum dibuatkan versi deployment baru.                  | Di Apps Script, buka **Deploy** -> **Manage Deployments** -> Edit -> ganti **Version** ke **New version** -> klik **Deploy**. |
 | **Error:** `id` **atau data tidak muncul**              | Baris header (baris 1) di Google Sheet salah eja atau kosong.       | Samakan persis nama header kolom pada baris 1 seperti panduan di [Konfigurasi Google Sheets](#-1-konfigurasi-google-sheets).  |
+| **Data tercampur antar akun / data akun lain ikut tampil** | Kolom `id_user` belum ada di sheet `Transaksi`/`Tamu`, atau baris lama kosong tanpa `id_user`. | Tambahkan kolom `id_user` di baris header sesuai panduan Sheet 2–5, isi `id_user` tiap baris lama, lalu Deploy ulang Apps Script sebagai **New version**. |
 
 
 ---

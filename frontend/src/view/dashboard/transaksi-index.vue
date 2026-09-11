@@ -10,6 +10,11 @@ const errorMessage = ref('');
 const deletingId = ref<string | null>(null);
 const editingId = ref<string | null>(null);
 
+// Radio button: 'debit' | 'kredit'
+const tipeTransaksi = ref<'debit' | 'kredit'>('debit');
+// Nominal absolut yang diinput user (selalu positif)
+const nominalInput = ref<number | string>('');
+
 const emptyForm = () => ({
   tanggal: '',
   Keterangan: '',
@@ -29,6 +34,22 @@ const formatRupiah = (value: number | string) => {
   }).format(n);
 };
 
+// Deteksi apakah nilai adalah kredit (negatif)
+const isKredit = (value: number | string) => Number(value) < 0;
+
+// Saat tipe berubah, update Kredit_Debit di form
+const onTipeChange = () => {
+  if (nominalInput.value === '' || nominalInput.value === null) return;
+  const abs = Math.abs(Number(nominalInput.value));
+  form.value.Kredit_Debit = tipeTransaksi.value === 'kredit' ? -abs : abs;
+};
+
+// Saat nominal berubah, update Kredit_Debit di form
+const onNominalChange = () => {
+  const abs = Math.abs(Number(nominalInput.value));
+  form.value.Kredit_Debit = tipeTransaksi.value === 'kredit' ? -abs : abs;
+};
+
 const fetchTransaksi = async () => {
   isLoading.value = true;
   try {
@@ -43,6 +64,8 @@ const fetchTransaksi = async () => {
 const openCreateModal = () => {
   editingId.value = null;
   form.value = emptyForm();
+  tipeTransaksi.value = 'debit';
+  nominalInput.value = '';
   errorMessage.value = '';
   showModal.value = true;
 };
@@ -50,6 +73,9 @@ const openCreateModal = () => {
 const openEditModal = (item: Transaksi) => {
   if (!item.id_transaksi) return;
   editingId.value = String(item.id_transaksi);
+  const val = Number(item.Kredit_Debit ?? 0);
+  tipeTransaksi.value = val < 0 ? 'kredit' : 'debit';
+  nominalInput.value = Math.abs(val);
   form.value = {
     tanggal: item.tanggal || '',
     Keterangan: item.Keterangan || '',
@@ -70,10 +96,14 @@ const handleSubmit = async () => {
     errorMessage.value = 'Keterangan tidak boleh kosong!';
     return;
   }
-  if (form.value.Kredit_Debit === '' || form.value.Kredit_Debit === null) {
+  if (nominalInput.value === '' || nominalInput.value === null) {
     errorMessage.value = 'Nominal Kredit/Debit tidak boleh kosong!';
     return;
   }
+
+  // Pastikan Kredit_Debit sudah ter-update
+  const abs = Math.abs(Number(nominalInput.value));
+  form.value.Kredit_Debit = tipeTransaksi.value === 'kredit' ? -abs : abs;
 
   isSubmitting.value = true;
   errorMessage.value = '';
@@ -179,10 +209,20 @@ onMounted(() => {
               <div class="d-flex flex-wrap align-items-center gap-2 small">
                 <span class="badge bg-white text-dark border">{{ item.Kategori || '-' }}</span>
                 <span class="text-muted"><i class="bi bi-calendar-event me-1"></i>{{ item.tanggal || '-' }}</span>
+                <span class="text-muted"><i class="bi bi-person me-1"></i>{{ item.id_user || '-' }}</span>
               </div>
             </div>
             <div class="text-end flex-shrink-0">
-              <span class="fw-bold text-dark fs-6">{{ formatRupiah(item.Kredit_Debit) }}</span>
+              <span
+                class="fw-bold fs-6"
+                :class="isKredit(item.Kredit_Debit) ? 'text-danger' : 'text-success'"
+              >{{ formatRupiah(item.Kredit_Debit) }}</span>
+              <div class="mt-1">
+                <span
+                  class="badge rounded-pill"
+                  :class="isKredit(item.Kredit_Debit) ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'"
+                >{{ isKredit(item.Kredit_Debit) ? 'Kredit' : 'Debit' }}</span>
+              </div>
             </div>
           </div>
           <div class="d-flex justify-content-end gap-2 pt-2 border-top">
@@ -215,19 +255,28 @@ onMounted(() => {
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr class="small text-muted text-uppercase">
+              <th>ID User</th>
               <th>Tanggal</th>
               <th>Keterangan</th>
               <th>Kategori</th>
+              <th>Tipe</th>
               <th>Kredit / Debit</th>
               <th class="text-end">Aksi</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in list" :key="item.id_transaksi">
+              <td class="text-muted small">{{ item.id_user || '-' }}</td>
               <td class="text-muted small">{{ item.tanggal || '-' }}</td>
               <td class="fw-semibold text-dark">{{ item.Keterangan }}</td>
               <td><span class="badge bg-light text-dark border">{{ item.Kategori || '-' }}</span></td>
-              <td class="fw-bold text-dark">{{ formatRupiah(item.Kredit_Debit) }}</td>
+              <td>
+                <span
+                  class="badge rounded-pill"
+                  :class="isKredit(item.Kredit_Debit) ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'"
+                >{{ isKredit(item.Kredit_Debit) ? 'Kredit' : 'Debit' }}</span>
+              </td>
+              <td class="fw-bold" :class="isKredit(item.Kredit_Debit) ? 'text-danger' : 'text-success'">{{ formatRupiah(item.Kredit_Debit) }}</td>
               <td class="text-end">
                 <div class="d-inline-flex gap-1">
                   <button
@@ -313,16 +362,60 @@ onMounted(() => {
             />
           </div>
           <div class="mb-4">
-            <label class="form-label fw-semibold small text-dark mb-1">
-              Nominal Kredit / Debit <span class="text-danger">*</span>
+            <label class="form-label fw-semibold small text-dark mb-2">
+              Tipe Transaksi <span class="text-danger">*</span>
             </label>
-            <input
-              v-model="form.Kredit_Debit"
-              type="number"
-              class="form-control rounded-3"
-              placeholder="15000000"
-              required
-            />
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input
+                  id="tipe-debit"
+                  v-model="tipeTransaksi"
+                  class="form-check-input"
+                  type="radio"
+                  value="debit"
+                  @change="onTipeChange"
+                />
+                <label class="form-check-label text-success fw-semibold" for="tipe-debit">
+                  <i class="bi bi-arrow-up-circle me-1"></i>Debit
+                </label>
+              </div>
+              <div class="form-check">
+                <input
+                  id="tipe-kredit"
+                  v-model="tipeTransaksi"
+                  class="form-check-input"
+                  type="radio"
+                  value="kredit"
+                  @change="onTipeChange"
+                />
+                <label class="form-check-label text-danger fw-semibold" for="tipe-kredit">
+                  <i class="bi bi-arrow-down-circle me-1"></i>Kredit
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold small text-dark mb-1">
+              Nominal <span class="text-danger">*</span>
+              <span class="text-muted fw-normal ms-1 small">
+                ({{ tipeTransaksi === 'kredit' ? 'Kredit: akan disimpan sebagai nilai negatif (-)' : 'Debit: nilai positif' }})
+              </span>
+            </label>
+            <div class="input-group">
+              <span
+                class="input-group-text fw-bold"
+                :class="tipeTransaksi === 'kredit' ? 'text-danger bg-danger-subtle border-danger' : 'text-success bg-success-subtle border-success'"
+              >{{ tipeTransaksi === 'kredit' ? '-' : '+' }}</span>
+              <input
+                v-model="nominalInput"
+                type="number"
+                class="form-control rounded-end-3"
+                placeholder="15000000"
+                min="0"
+                required
+                @input="onNominalChange"
+              />
+            </div>
           </div>
           <div class="d-flex justify-content-end gap-2 pt-2 border-top">
             <button

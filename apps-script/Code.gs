@@ -84,6 +84,10 @@ function getRencanaSheet(ss) {
   return sheet;
 }
 
+function cleanHeaderKey(h) {
+  return String(h || '').toLowerCase().replace(/[\s_]+/g, '');
+}
+
 function ensureRencanaHeaders(sheet) {
   const dataRange = sheet.getDataRange();
   const rows = dataRange.getValues();
@@ -92,13 +96,84 @@ function ensureRencanaHeaders(sheet) {
     return ['id', 'id_user', 'TugasRencana', 'tgl_deadline', 'status'];
   }
   const headers = rows[0].map(h => String(h).trim());
-  const idUserIdx = headers.findIndex(h => h.toLowerCase() === 'id_user');
+  const idUserIdx = headers.findIndex(h => {
+    const c = cleanHeaderKey(h);
+    return c === 'iduser' || c === 'userid' || c === 'user';
+  });
   if (idUserIdx === -1) {
     // Sisipkan atau tambahkan kolom id_user jika belum ada di gsheet
     sheet.getRange(1, headers.length + 1).setValue('id_user');
     headers.push('id_user');
   }
   return headers;
+}
+
+function findMatchingUserIds(ss, inputUser) {
+  const ids = [];
+  if (inputUser !== undefined && inputUser !== null && String(inputUser).trim() !== '') {
+    const raw = String(inputUser).trim();
+    ids.push(raw);
+    try {
+      const sheetUsers = ss.getSheetByName('Users');
+      if (sheetUsers) {
+        const uRows = sheetUsers.getDataRange().getValues();
+        if (uRows.length > 1) {
+          const uHeaders = uRows[0].map(cleanHeaderKey);
+          const uIdIdx = uHeaders.findIndex(h => h === 'iduser' || h === 'id');
+          const uNameIdx = uHeaders.findIndex(h => h === 'username');
+          for (let i = 1; i < uRows.length; i++) {
+            const rId = uIdIdx !== -1 ? String(uRows[i][uIdIdx]).trim() : '';
+            const rUser = uNameIdx !== -1 ? String(uRows[i][uNameIdx]).trim() : '';
+            if (ids.includes(rId) || ids.includes(rUser)) {
+              if (rId && !ids.includes(rId)) ids.push(rId);
+              if (rUser && !ids.includes(rUser)) ids.push(rUser);
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+  return ids;
+}
+
+function mapRencanaRows(headers, rows) {
+  const cleanHeaders = headers.map(cleanHeaderKey);
+
+  const getIdx = (patterns) => {
+    return cleanHeaders.findIndex(c => patterns.includes(c));
+  };
+
+  const idCol = getIdx(['id', 'idrencana']);
+  const idUserCol = getIdx(['iduser', 'userid', 'user']);
+  const tugasCol = getIdx(['tugasrencana', 'tugas', 'rencana']);
+  const tglCol = getIdx(['tgldeadline', 'deadline', 'target', 'tanggal']);
+  const statusCol = getIdx(['status', 'keadaan']);
+
+  return rows.slice(1).map((row, rowIdx) => {
+    let rawId = idCol !== -1 ? row[idCol] : (row[0] || (rowIdx + 1));
+    let rawUser = idUserCol !== -1 ? row[idUserCol] : '';
+    let rawTugas = tugasCol !== -1 ? row[tugasCol] : (row[2] || '');
+    let rawTgl = tglCol !== -1 ? row[tglCol] : (row[3] || '');
+    let rawStatus = statusCol !== -1 ? row[statusCol] : (row[4] || 'pending');
+
+    let formattedTgl = rawTgl;
+    if (rawTgl instanceof Date) {
+      formattedTgl = Utilities.formatDate(rawTgl, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+
+    let normalizedStatus = String(rawStatus || '').toLowerCase().trim();
+    if (normalizedStatus !== 'selesai') {
+      normalizedStatus = 'pending';
+    }
+
+    return {
+      id: rawId,
+      id_user: rawUser,
+      TugasRencana: String(rawTugas || '').trim(),
+      tgl_deadline: String(formattedTgl || '').trim(),
+      status: normalizedStatus
+    };
+  });
 }
 
 function doGetRencana(e) {
@@ -113,20 +188,14 @@ function doGetRencana(e) {
     ? String(e.parameter.id_user).trim()
     : null;
 
-  const data = rows.slice(1).map(row => {
-    let obj = {};
-    headers.forEach((h, idx) => {
-      if (h === 'tgl_deadline' && row[idx] instanceof Date) {
-        obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      } else {
-        obj[h] = row[idx];
-      }
-    });
-    return obj;
-  });
+  const data = mapRencanaRows(headers, rows);
 
   if (idUserParam) {
-    const filtered = data.filter(item => String(item.id_user || '').trim() === idUserParam);
+    const validIds = findMatchingUserIds(ss, idUserParam);
+    const filtered = data.filter(item => {
+      const itemUser = String(item.id_user || '').trim();
+      return validIds.includes(itemUser) || itemUser === '';
+    });
     return responseJSON({ status: 'success', data: filtered });
   }
 
@@ -146,20 +215,18 @@ function doPostRencana(body, ss) {
       ? String(body.id_user).trim()
       : null;
 
-    const data = rows.slice(1).map(row => {
-      let obj = {};
-      headers.forEach((h, idx) => {
-        if (h === 'tgl_deadline' && row[idx] instanceof Date) {
-          obj[h] = Utilities.formatDate(row[idx], Session.getScriptTimeZone(), 'yyyy-MM-dd');
-        } else {
-          obj[h] = row[idx];
-        }
-      });
-      return obj;
-    });
+    const data = mapRencanaRows(headers, rows);
 
     if (targetIdUser) {
-      const filtered = data.filter(item => String(item.id_user || '').trim() === targetIdUser);
+      const validIds = findMatchingUserIds(ss, targetIdUser);
+      if (body.username) {
+        const u = String(body.username).trim();
+        if (u && !validIds.includes(u)) validIds.push(u);
+      }
+      const filtered = data.filter(item => {
+        const itemUser = String(item.id_user || '').trim();
+        return validIds.includes(itemUser) || itemUser === '';
+      });
       return responseJSON({ status: 'success', data: filtered });
     }
 
@@ -168,13 +235,18 @@ function doPostRencana(body, ss) {
 
   if (action === 'addRencana') {
     const headers = ensureRencanaHeaders(sheet);
-    const getCol = (name) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+    const cleanHeaders = headers.map(cleanHeaderKey);
 
-    const idCol = getCol('id') !== -1 ? getCol('id') : 0;
-    const idUserCol = getCol('id_user') !== -1 ? getCol('id_user') : 1;
-    const tugasCol = getCol('tugasrencana') !== -1 ? getCol('tugasrencana') : 2;
-    const tglCol = getCol('tgl_deadline') !== -1 ? getCol('tgl_deadline') : 3;
-    const statusCol = getCol('status') !== -1 ? getCol('status') : 4;
+    const getCol = (patterns, fallback) => {
+      const idx = cleanHeaders.findIndex(c => patterns.includes(c));
+      return idx !== -1 ? idx : fallback;
+    };
+
+    const idCol = getCol(['id', 'idrencana'], 0);
+    const idUserCol = getCol(['iduser', 'userid', 'user'], 1);
+    const tugasCol = getCol(['tugasrencana', 'tugas', 'rencana'], 2);
+    const tglCol = getCol(['tgldeadline', 'deadline', 'target', 'tanggal'], 3);
+    const statusCol = getCol(['status', 'keadaan'], 4);
 
     const newId = new Date().getTime().toString();
     const idUser = (body.id_user !== undefined && body.id_user !== null) ? String(body.id_user).trim() : '';
@@ -204,13 +276,18 @@ function doPostRencana(body, ss) {
 
   if (action === 'updateStatusRencana') {
     const data = sheet.getDataRange().getValues();
-    const headers = data[0].map(h => String(h).trim());
-    const idCol = headers.findIndex(h => h.toLowerCase() === 'id') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'id') : 0;
-    const statusCol = headers.findIndex(h => h.toLowerCase() === 'status') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'status') : 4;
+    const headers = data[0].map(cleanHeaderKey);
+    const idCol = headers.findIndex(h => h === 'id' || h === 'idrencana');
+    const statusCol = headers.findIndex(h => h === 'status' || h === 'keadaan');
+    const safeIdCol = idCol !== -1 ? idCol : 0;
+    const safeStatusCol = statusCol !== -1 ? statusCol : 4;
+
+    const targetId = String(body.id ?? '').trim();
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][idCol].toString() === body.id.toString()) {
-        sheet.getRange(i + 1, statusCol + 1).setValue(body.status);
+      const rowId = String(data[i][safeIdCol] ?? '').trim();
+      if (rowId === targetId) {
+        sheet.getRange(i + 1, safeStatusCol + 1).setValue(body.status);
         return responseJSON({ status: 'success', message: 'Status rencana berhasil diupdate' });
       }
     }
@@ -219,11 +296,15 @@ function doPostRencana(body, ss) {
 
   if (action === 'deleteRencana') {
     const data = sheet.getDataRange().getValues();
-    const headers = data[0].map(h => String(h).trim());
-    const idCol = headers.findIndex(h => h.toLowerCase() === 'id') !== -1 ? headers.findIndex(h => h.toLowerCase() === 'id') : 0;
+    const headers = data[0].map(cleanHeaderKey);
+    const idCol = headers.findIndex(h => h === 'id' || h === 'idrencana');
+    const safeIdCol = idCol !== -1 ? idCol : 0;
+
+    const targetId = String(body.id ?? '').trim();
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][idCol].toString() === body.id.toString()) {
+      const rowId = String(data[i][safeIdCol] ?? '').trim();
+      if (rowId === targetId) {
         sheet.deleteRow(i + 1);
         return responseJSON({ status: 'success', message: 'Tugas rencana berhasil dihapus' });
       }

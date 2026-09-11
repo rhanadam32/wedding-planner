@@ -5,6 +5,15 @@ const Api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || '',
 });
 
+Api.interceptors.response.use((response) => {
+    if (typeof response.data === 'string') {
+        try {
+            response.data = JSON.parse(response.data);
+        } catch (_) {}
+    }
+    return response;
+});
+
 const jsonPlainHeaders = {
     'Content-Type': 'text/plain;charset=utf-8'
 };
@@ -33,7 +42,7 @@ export const authService = {
             headers: jsonPlainHeaders
         });
 
-        if (response.data.status === 'success') {
+        if (response.data && response.data.status === 'success') {
             Cookies.set('token', response.data.token, {
                 expires: 1
             });
@@ -78,33 +87,86 @@ export interface RencanaItem {
 }
 
 export const rencanaService = {
-    // A. Ambil data rencana (POST action atau GET fallback) terpisah per id_user
+    // A. Ambil data rencana terpisah per id_user dengan normalisasi & fallback otomatis
     async getRencana(idUser?: string | number): Promise<RencanaItem[]> {
-        const uid = idUser ?? authService.getUser()?.id_user;
+        const user = authService.getUser();
+        const uid = idUser ?? user?.id_user;
+
+        const normalizeItems = (items: any[]): RencanaItem[] => {
+            if (!Array.isArray(items)) return [];
+            return items.map((item: any) => ({
+                id: item.id !== undefined && item.id !== null ? item.id : Date.now(),
+                id_user: item.id_user !== undefined && item.id_user !== null ? item.id_user : (item.idUser || ''),
+                TugasRencana: item.TugasRencana || item.tugas_rencana || item['Tugas Rencana'] || item.tugas || item.rencana || '',
+                tgl_deadline: item.tgl_deadline || item.deadline || item['Target'] || item.tanggal || '',
+                status: (item.status === 'selesai' || item.status === 'Selesai' || item.status === true) ? 'selesai' : 'pending'
+            }));
+        };
+
+        const extractData = (res: any): RencanaItem[] => {
+            let resData = res?.data;
+            if (typeof resData === 'string') {
+                try { resData = JSON.parse(resData); } catch (_) {}
+            }
+            if (resData && resData.status === 'success' && Array.isArray(resData.data)) {
+                return normalizeItems(resData.data);
+            }
+            return [];
+        };
+
+        // 1. Ambil data rencana via POST action
         try {
             const response = await Api.post('', JSON.stringify({
                 action: 'getRencana',
-                id_user: uid
+                id_user: uid,
+                username: user?.username
             }), {
                 headers: jsonPlainHeaders
             });
-            if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
-                return response.data.data;
+            const list = extractData(response);
+            if (list.length > 0 || !uid) {
+                return list;
             }
         } catch (e) {
-            console.warn('POST getRencana error, mencoba GET...', e);
+            console.warn('POST getRencana error, mencoba fallback GET...', e);
         }
 
+        // 2. Fallback via GET parameter
         try {
             const response = await Api.get('', {
                 params: uid ? { id_user: uid } : {}
             });
-            if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
-                return response.data.data;
+            const list = extractData(response);
+            if (list.length > 0) {
+                return list;
             }
         } catch (err) {
-            console.error('Gagal mengambil data rencana via GET:', err);
+            console.warn('GET getRencana error:', err);
         }
+
+        // 3. Jika filtering backend mengembalikan array kosong (misal format ID akun berbeda / data legacy),
+        // ambil semua rencana dan saring secara cerdas di sisi client
+        try {
+            const fallbackResponse = await Api.post('', JSON.stringify({
+                action: 'getRencana'
+            }), {
+                headers: jsonPlainHeaders
+            });
+            const allList = extractData(fallbackResponse);
+            if (allList.length > 0) {
+                if (!uid) return allList;
+                const uidStr = String(uid).trim().toLowerCase();
+                const unameStr = String(user?.username || '').trim().toLowerCase();
+
+                const matched = allList.filter(item => {
+                    const itemUid = String(item.id_user || '').trim().toLowerCase();
+                    // Cocok dengan ID akun, username, atau data lama tanpa id_user
+                    return itemUid === uidStr || (unameStr && itemUid === unameStr) || itemUid === '';
+                });
+
+                return matched.length > 0 ? matched : allList;
+            }
+        } catch (_) {}
 
         return [];
     },

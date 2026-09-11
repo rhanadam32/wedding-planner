@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { authService, rencanaService, RencanaItem } from '../../services/api';
+import { authService, rencanaService, RencanaItem, User } from '../../services/api';
 
-const user = authService.getUser();
+const user = ref<User | null>(authService.getUser());
 const checklist = ref<RencanaItem[]>([]);
 const isLoading = ref(true);
 
@@ -17,8 +17,9 @@ const form = ref({
 
 const fetchRencana = async () => {
   isLoading.value = true;
+  user.value = authService.getUser();
   try {
-    const data = await rencanaService.getRencana(user?.id_user);
+    const data = await rencanaService.getRencana(user.value?.id_user);
     checklist.value = data;
   } catch (error) {
     console.error('Gagal memuat data rencana:', error);
@@ -51,10 +52,11 @@ const handleSubmit = async () => {
   errorMessage.value = '';
 
   try {
+    const currentUser = authService.getUser();
     const res = await rencanaService.addRencana({
       TugasRencana: form.value.TugasRencana.trim(),
       tgl_deadline: form.value.tgl_deadline,
-      id_user: user?.id_user
+      id_user: currentUser?.id_user
     });
 
     if (res && res.status === 'error') {
@@ -125,16 +127,26 @@ onMounted(() => {
           <i class="bi bi-calendar2-check-fill text-primary me-2"></i>Rencana & Checklist Persiapan
         </h4>
         <p class="text-muted small mb-0">
-          Timeline dan daftar tugas khusus akun <strong class="text-primary">{{ user?.name || user?.username }}</strong>
+          Timeline dan daftar tugas khusus akun <strong class="text-primary">{{ user?.name || user?.username || 'Pengantin' }}</strong>
           <span v-if="user?.id_user" class="badge bg-light text-muted border ms-1">ID: {{ user.id_user }}</span>
         </p>
       </div>
-      <button 
-        class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm"
-        @click="openModal"
-      >
-        <i class="bi bi-plus-lg me-1"></i> Tambah Tugas
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button 
+          class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm"
+          title="Muat Ulang Data"
+          :disabled="isLoading"
+          @click="fetchRencana"
+        >
+          <i class="bi bi-arrow-clockwise me-1" :class="{ 'spin-anim': isLoading }"></i> Segarkan
+        </button>
+        <button 
+          class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm"
+          @click="openModal"
+        >
+          <i class="bi bi-plus-lg me-1"></i> Tambah Tugas
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -170,11 +182,16 @@ onMounted(() => {
               class="form-check-label cursor-pointer mb-0"
               :class="{ 'text-decoration-line-through text-muted': item.status === 'selesai', 'fw-medium text-dark': item.status !== 'selesai' }"
             >
-              {{ item.TugasRencana }}
+              {{ item.TugasRencana || '(Tugas Tanpa Judul)' }}
             </label>
-            <small class="d-block text-muted" style="font-size: 0.75rem;">
-              Target: {{ item.tgl_deadline || '-' }}
-            </small>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <small class="text-muted" style="font-size: 0.75rem;">
+                <i class="bi bi-calendar-event me-1"></i>Target: {{ item.tgl_deadline || '-' }}
+              </small>
+              <span v-if="item.id_user" class="badge bg-light text-secondary border" style="font-size: 0.65rem;">
+                ID: {{ item.id_user }}
+              </span>
+            </div>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2 flex-shrink-0">
@@ -315,6 +332,16 @@ onMounted(() => {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+.spin-anim {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
 
