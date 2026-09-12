@@ -162,7 +162,7 @@ onMounted(() => {
           <span v-if="user?.id_user" class="badge bg-light text-muted border ms-1">ID: {{ user.id_user }}</span>
         </p>
       </div>
-      <button class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm align-self-start align-self-sm-center" @click="openCreateModal">
+      <button class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm tamu-add-btn" @click="openCreateModal">
         <i class="bi bi-person-plus me-1"></i> Tambah Tamu
       </button>
     </div>
@@ -384,7 +384,7 @@ onMounted(() => {
           </div>
 
           <!-- Modal Footer -->
-          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+          <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 pt-2 border-top">
             <button
               type="button"
               class="btn btn-light rounded-pill px-3 px-sm-4 fw-semibold text-muted"
@@ -423,10 +423,27 @@ onMounted(() => {
   backdrop-filter: blur(4px);
   z-index: 1050;
   animation: fadeIn 0.2s ease-in-out;
+  padding: 1rem;
+  overflow-y: auto;
 }
 
 .modal-dialog-custom {
   animation: slideDown 0.25s ease-out;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.form-control,
+.form-select {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.d-md-none .btn {
+  min-height: 44px;
 }
 
 @keyframes fadeIn {
@@ -442,6 +459,36 @@ onMounted(() => {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* HP: tombol tambah full-width + modal jadi bottom-sheet */
+@media (max-width: 575.98px) {
+  .tamu-add-btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 0.9rem;
+  }
+
+  .modal-backdrop-custom {
+    padding: 0;
+    align-items: flex-end !important;
+  }
+
+  .modal-dialog-custom {
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 1.25rem !important;
+    border-top-right-radius: 1.25rem !important;
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
+
+  .modal-dialog-custom .btn {
+    min-height: 48px;
   }
 }
 </style>

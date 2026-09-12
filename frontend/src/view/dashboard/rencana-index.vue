@@ -119,20 +119,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="card border-0 rounded-4 shadow-sm p-4 bg-white">
+  <div class="card border-0 rounded-4 shadow-sm p-3 p-sm-4 bg-white">
     <!-- Header -->
     <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-4 pb-2 border-bottom">
       <div>
         <h4 class="fw-bold mb-1 text-dark">
-          <i class="bi bi-calendar2-check-fill text-primary me-2"></i>Rencana & Checklist Persiapan
+          <i class="bi bi-calendar2-check-fill text-primary me-2"></i>Rencana &amp; Checklist Persiapan
         </h4>
         <p class="text-muted small mb-0">
-          Timeline dan daftar tugas khusus akun <strong class="text-primary">{{ user?.name || user?.username || 'Pengantin' }}</strong>
-          <span v-if="user?.id_user" class="badge bg-light text-muted border ms-1">ID: {{ user.id_user }}</span>
+          Timeline dan daftar tugas khusus akun <strong class="text-primary text-break">{{ user?.name || user?.username || 'Pengantin' }}</strong>
+          <span v-if="user?.id_user" class="badge bg-light text-muted border ms-1 d-none d-md-inline">ID: {{ user.id_user }}</span>
         </p>
       </div>
-      <div class="d-flex align-items-center gap-2">
-        <button 
+      <!-- Action buttons: full-width di HP, sejajar di desktop -->
+      <div class="d-flex align-items-stretch align-items-sm-center gap-2 rencana-actions">
+        <button
           class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm"
           title="Muat Ulang Data"
           :disabled="isLoading"
@@ -140,7 +141,7 @@ onMounted(() => {
         >
           <i class="bi bi-arrow-clockwise me-1" :class="{ 'spin-anim': isLoading }"></i> Segarkan
         </button>
-        <button 
+        <button
           class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm"
           @click="openModal"
         >
@@ -158,71 +159,131 @@ onMounted(() => {
     <!-- Empty State -->
     <div v-else-if="checklist.length === 0" class="text-center py-5 text-muted">
       <i class="bi bi-clipboard-x fs-1 d-block mb-2 text-secondary"></i>
-      <p class="mb-0 fw-medium">Belum ada rencana yang tersimpan.</p>
+      <p class="mb-3 fw-medium">Belum ada rencana yang tersimpan.</p>
+      <button class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm py-2" @click="openModal">
+        <i class="bi bi-plus-lg me-1"></i> Tambah Tugas Sekarang
+      </button>
     </div>
 
     <!-- Checklist List -->
-    <div v-else class="list-group list-group-flush">
-      <div 
-        v-for="item in checklist" 
-        :key="item.id" 
-        class="list-group-item d-flex justify-content-between align-items-center py-3 px-0 gap-3"
-      >
-        <div class="form-check d-flex align-items-center gap-2 flex-grow-1">
-          <input 
-            type="checkbox" 
-            class="form-check-input mt-0 fs-5 cursor-pointer" 
-            :id="'chk-' + item.id" 
-            :checked="item.status === 'selesai'"
-            @change="toggle(item)"
-          />
-          <div>
+    <div v-else>
+
+      <!-- ── Mobile card list (hidden on md+) ── -->
+      <div class="d-md-none">
+        <div 
+          v-for="item in checklist" 
+          :key="item.id" 
+          class="rounded-3 border bg-light-subtle p-3 mb-2 shadow-sm"
+        >
+          <!-- Checkbox + task name -->
+          <div class="form-check d-flex align-items-start gap-2 mb-2">
+            <input 
+              type="checkbox" 
+              class="form-check-input mt-1 fs-5 cursor-pointer flex-shrink-0" 
+              :id="'chk-mob-' + item.id" 
+              :checked="item.status === 'selesai'"
+              @change="toggle(item)"
+            />
             <label 
-              :for="'chk-' + item.id" 
-              class="form-check-label cursor-pointer mb-0"
-              :class="{ 'text-decoration-line-through text-muted': item.status === 'selesai', 'fw-medium text-dark': item.status !== 'selesai' }"
+              :for="'chk-mob-' + item.id" 
+              class="form-check-label cursor-pointer mb-0 fw-medium text-break"
+              :class="{ 'text-decoration-line-through text-muted': item.status === 'selesai', 'text-dark': item.status !== 'selesai' }"
             >
               {{ item.TugasRencana || '(Tugas Tanpa Judul)' }}
             </label>
-            <div class="d-flex align-items-center gap-2 mt-1">
-              <small class="text-muted" style="font-size: 0.75rem;">
-                <i class="bi bi-calendar-event me-1"></i>Target: {{ item.tgl_deadline || '-' }}
-              </small>
-              <span v-if="item.id_user" class="badge bg-light text-secondary border" style="font-size: 0.65rem;">
-                ID: {{ item.id_user }}
-              </span>
-            </div>
+          </div>
+
+          <!-- Deadline -->
+          <div class="small text-muted mb-2 ps-1">
+            <i class="bi bi-calendar-event me-1"></i>Target: {{ item.tgl_deadline || '-' }}
+          </div>
+
+          <!-- Bottom row: status badge + delete button -->
+          <div class="d-flex align-items-center justify-content-between pt-2 border-top gap-2">
+            <span 
+              class="badge rounded-pill text-capitalize"
+              :class="item.status === 'selesai' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+            >
+              {{ item.status }}
+            </span>
+            <button 
+              type="button" 
+              class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1 py-2 px-3" 
+              title="Hapus Tugas"
+              :disabled="deletingId === item.id"
+              @click="handleDelete(item)"
+            >
+              <span v-if="deletingId === item.id" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              <i v-else class="bi bi-trash3"></i>
+              <span>Hapus</span>
+            </button>
           </div>
         </div>
-        <div class="d-flex align-items-center gap-2 flex-shrink-0">
-          <span 
-            class="badge rounded-pill text-capitalize"
-            :class="item.status === 'selesai' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
-          >
-            {{ item.status }}
-          </span>
-          <button 
-            type="button" 
-            class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0" 
-            style="width: 32px; height: 32px;"
-            title="Hapus Tugas"
-            :disabled="deletingId === item.id"
-            @click="handleDelete(item)"
-          >
-            <span v-if="deletingId === item.id" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            <i v-else class="bi bi-trash3"></i>
-          </button>
+      </div>
+
+      <!-- ── Desktop list-group (hidden below md) ── -->
+      <div class="list-group list-group-flush d-none d-md-block">
+        <div 
+          v-for="item in checklist" 
+          :key="item.id" 
+          class="list-group-item d-flex justify-content-between align-items-center py-3 px-0 gap-3"
+        >
+          <div class="form-check d-flex align-items-center gap-2 flex-grow-1">
+            <input 
+              type="checkbox" 
+              class="form-check-input mt-0 fs-5 cursor-pointer" 
+              :id="'chk-' + item.id" 
+              :checked="item.status === 'selesai'"
+              @change="toggle(item)"
+            />
+            <div>
+              <label 
+                :for="'chk-' + item.id" 
+                class="form-check-label cursor-pointer mb-0"
+                :class="{ 'text-decoration-line-through text-muted': item.status === 'selesai', 'fw-medium text-dark': item.status !== 'selesai' }"
+              >
+                {{ item.TugasRencana || '(Tugas Tanpa Judul)' }}
+              </label>
+              <div class="d-flex align-items-center gap-2 mt-1">
+                <small class="text-muted" style="font-size: 0.75rem;">
+                  <i class="bi bi-calendar-event me-1"></i>Target: {{ item.tgl_deadline || '-' }}
+                </small>
+                <span v-if="item.id_user" class="badge bg-light text-secondary border" style="font-size: 0.65rem;">
+                  ID: {{ item.id_user }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <span 
+              class="badge rounded-pill text-capitalize"
+              :class="item.status === 'selesai' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+            >
+              {{ item.status }}
+            </span>
+            <button 
+              type="button" 
+              class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0" 
+              style="width: 32px; height: 32px;"
+              title="Hapus Tugas"
+              :disabled="deletingId === item.id"
+              @click="handleDelete(item)"
+            >
+              <span v-if="deletingId === item.id" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              <i v-else class="bi bi-trash3"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Modal Form Tambah Tugas -->
     <div v-if="showModal" class="modal-backdrop-custom d-flex align-items-center justify-content-center">
-      <div class="modal-dialog-custom bg-white rounded-4 shadow-lg p-4 w-100 mx-3" style="max-width: 500px;">
+      <div class="modal-dialog-custom bg-white rounded-4 shadow-lg p-3 p-sm-4 w-100 mx-2" style="max-width: 500px;">
         <!-- Modal Header -->
         <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
           <div class="d-flex align-items-center gap-2">
-            <div class="bg-primary-subtle text-primary p-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+            <div class="bg-primary-subtle text-primary p-2 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
               <i class="bi bi-card-checklist fs-5"></i>
             </div>
             <div>
@@ -241,7 +302,7 @@ onMounted(() => {
 
         <!-- Alert Error -->
         <div v-if="errorMessage" class="alert alert-danger py-2 small d-flex align-items-center gap-2 mb-3">
-          <i class="bi bi-exclamation-triangle-fill"></i>
+          <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
           <span>{{ errorMessage }}</span>
         </div>
 
@@ -254,7 +315,7 @@ onMounted(() => {
             <input 
               v-model="form.TugasRencana" 
               type="text" 
-              class="form-control rounded-3" 
+              class="form-control rounded-3 w-100" 
               placeholder="Contoh: Booking Gedung & Catering"
               required
               autofocus
@@ -268,15 +329,15 @@ onMounted(() => {
             <input 
               v-model="form.tgl_deadline" 
               type="date" 
-              class="form-control rounded-3" 
+              class="form-control rounded-3 w-100" 
             />
           </div>
 
-          <!-- Modal Footer -->
-          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+          <!-- Modal Footer – stacked on mobile, side-by-side on sm+ -->
+          <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 pt-2 border-top">
             <button 
               type="button" 
-              class="btn btn-light rounded-pill px-4 fw-semibold text-muted" 
+              class="btn btn-light rounded-pill px-4 fw-semibold text-muted w-100 w-sm-auto py-2" 
               :disabled="isSubmitting"
               @click="closeModal"
             >
@@ -284,7 +345,7 @@ onMounted(() => {
             </button>
             <button 
               type="submit" 
-              class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm"
+              class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm w-100 w-sm-auto py-2"
               :disabled="isSubmitting"
             >
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
@@ -312,10 +373,33 @@ onMounted(() => {
   backdrop-filter: blur(4px);
   z-index: 1050;
   animation: fadeIn 0.2s ease-in-out;
+  padding: 1rem;
+  overflow-y: auto;
 }
 
 .modal-dialog-custom {
   animation: slideDown 0.25s ease-out;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.form-control {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+/* Target sentuh yang nyaman di HP */
+.list-group-item .btn,
+.d-md-none .btn {
+  min-height: 44px;
+}
+
+.d-md-none .form-check-input {
+  width: 24px;
+  height: 24px;
 }
 
 @keyframes fadeIn {
@@ -342,6 +426,36 @@ onMounted(() => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* HP: tombol aksi full-width + modal jadi bottom-sheet */
+@media (max-width: 575.98px) {
+  .rencana-actions {
+    width: 100%;
+  }
+
+  .rencana-actions .btn {
+    flex: 1;
+    min-height: 44px;
+    font-size: 0.85rem;
+  }
+
+  .modal-backdrop-custom {
+    padding: 0;
+    align-items: flex-end !important;
+  }
+
+  .modal-dialog-custom {
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 1.25rem !important;
+    border-top-right-radius: 1.25rem !important;
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
 }
 </style>
 

@@ -94,12 +94,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="card border-0 rounded-4 shadow-sm p-4 bg-white">
+  <div class="card border-0 rounded-4 shadow-sm p-3 p-sm-4 bg-white account-card">
     <div class="mb-4 pb-2 border-bottom">
       <h4 class="fw-bold mb-1 text-dark">
-        <i class="bi bi-person-circle text-primary me-2"></i>Akun & Data Pernikahan
+        <i class="bi bi-hearts text-danger me-2"></i>Data Pernikahan
       </h4>
-      <p class="text-muted small mb-0">Informasi akun pengguna dan data acara pernikahan yang terpisah per akun (ID User: {{ user?.id_user || '-' }})</p>
+      <p class="text-muted small mb-0">Isi informasi calon pengantin, tanggal, dan lokasi acara pernikahan</p>
     </div>
 
     <!-- Alert Notifikasi -->
@@ -125,19 +125,11 @@ onMounted(() => {
 
     <!-- Form Konten -->
     <form v-else @submit.prevent="handleSimpan" class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Nama Pengguna (Login)</label>
-        <input type="text" class="form-control bg-light" :value="user.name || user.username" disabled />
-      </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">ID User Akun</label>
-        <div class="input-group">
-          <span class="input-group-text bg-light text-muted"><i class="bi bi-shield-lock"></i></span>
-          <input type="text" class="form-control bg-light text-primary fw-semibold" :value="user.id_user || '-'" disabled />
-        </div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Nama Calon Pengantin Pria</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-person-fill text-primary me-1"></i>Nama Calon Pengantin Pria
+          <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           class="form-control"
@@ -145,8 +137,11 @@ onMounted(() => {
           v-model="profil.calon_pengantin_pria"
         />
       </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Nama Calon Pengantin Wanita</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-person-fill text-danger me-1"></i>Nama Calon Pengantin Wanita
+          <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           class="form-control"
@@ -154,12 +149,16 @@ onMounted(() => {
           v-model="profil.calon_pengantin_wanita"
         />
       </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Tanggal Pernikahan</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-calendar-heart me-1 text-warning"></i>Tanggal Pernikahan
+        </label>
         <input type="date" class="form-control" v-model="profil.tanggal_pernikahan" />
       </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Lokasi / Kota Acara</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-geo-alt-fill me-1 text-success"></i>Lokasi / Kota Acara
+        </label>
         <input
           type="text"
           class="form-control"
@@ -167,10 +166,13 @@ onMounted(() => {
           v-model="profil.Lokasi"
         />
       </div>
-      <div class="col-12 text-end mt-4">
+      <div class="col-12 d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-2 mt-3 pt-3 border-top account-footer">
+        <small class="text-muted text-center text-sm-start">
+          <i class="bi bi-shield-lock me-1"></i>Data disimpan untuk akun: <strong>{{ user.name || user.username }}</strong>
+        </small>
         <button
           type="submit"
-          class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm"
+          class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm account-submit"
           :disabled="isSubmitting"
         >
           <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
@@ -181,3 +183,32 @@ onMounted(() => {
     </form>
   </div>
 </template>
+
+<style scoped>
+.account-card .form-control {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.account-submit {
+  min-height: 48px;
+}
+
+/* HP: tombol simpan full-width agar mudah dijangkau jempol */
+@media (max-width: 575.98px) {
+  .account-card {
+    border-radius: 1rem;
+  }
+
+  .account-footer {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-bottom: 0.25rem;
+  }
+
+  .account-submit {
+    width: 100%;
+  }
+}
+</style>

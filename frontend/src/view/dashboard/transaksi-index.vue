@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { transaksiService, Transaksi } from '../../services/api';
 
 const list = ref<Transaksi[]>([]);
@@ -36,6 +36,21 @@ const formatRupiah = (value: number | string) => {
 
 // Deteksi apakah nilai adalah kredit (negatif)
 const isKredit = (value: number | string) => Number(value) < 0;
+
+// Computed totals
+const totalDebit = computed(() =>
+  list.value.reduce((sum, item) => {
+    const val = Number(item.Kredit_Debit ?? 0);
+    return sum + (val > 0 ? val : 0);
+  }, 0)
+);
+const totalKredit = computed(() =>
+  list.value.reduce((sum, item) => {
+    const val = Number(item.Kredit_Debit ?? 0);
+    return sum + (val < 0 ? Math.abs(val) : 0);
+  }, 0)
+);
+const totalKeseluruhan = computed(() => totalDebit.value - totalKredit.value);
 
 // Saat tipe berubah, update Kredit_Debit di form
 const onTipeChange = () => {
@@ -170,12 +185,12 @@ onMounted(() => {
     <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4 pb-2 border-bottom">
       <div>
         <h4 class="fw-bold mb-1 text-dark">
-          <i class="bi bi-wallet2 text-warning me-2"></i>Transaksi & Pengeluaran
+          <i class="bi bi-wallet2 text-warning me-2"></i>Tabungan
         </h4>
-        <p class="text-muted small mb-0">Catatan pembayaran biaya dari Google Sheet</p>
+        <p class="text-muted small mb-0">Catatan Transaksi Pemasukan dan Pengeluaran</p>
       </div>
       <button
-        class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm align-self-start align-self-sm-center"
+        class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm transaksi-add-btn"
         @click="openCreateModal"
       >
         <i class="bi bi-plus-lg me-1"></i> Catat Pengeluaran
@@ -196,56 +211,85 @@ onMounted(() => {
 
     <!-- Data List -->
     <div v-else>
-      <!-- Mobile Card View (d-md-none) -->
-      <div class="d-md-none d-flex flex-column gap-3">
-        <div
-          v-for="item in list"
-          :key="item.id_transaksi"
-          class="p-3 rounded-3 border bg-light-subtle d-flex flex-column gap-2 shadow-sm"
-        >
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div class="flex-grow-1 overflow-hidden">
-              <h6 class="fw-bold text-dark mb-1 text-break">{{ item.Keterangan }}</h6>
-              <div class="d-flex flex-wrap align-items-center gap-2 small">
-                <span class="badge bg-white text-dark border">{{ item.Kategori || '-' }}</span>
-                <span class="text-muted"><i class="bi bi-calendar-event me-1"></i>{{ item.tanggal || '-' }}</span>
-                <span class="text-muted"><i class="bi bi-person me-1"></i>{{ item.id_user || '-' }}</span>
+      <!-- Mobile List View (d-md-none): satu baris per transaksi -->
+      <div class="d-md-none d-flex flex-column gap-2">
+        <div class="trx-list">
+          <div
+            v-for="item in list"
+            :key="item.id_transaksi"
+            class="trx-row"
+          >
+            <!-- Ikon tipe -->
+            <div
+              class="trx-icon flex-shrink-0"
+              :class="isKredit(item.Kredit_Debit) ? 'trx-out' : 'trx-in'"
+            >
+              <i
+                class="bi"
+                :class="isKredit(item.Kredit_Debit) ? 'bi-arrow-up-right' : 'bi-arrow-down-left'"
+              ></i>
+            </div>
+
+            <!-- Tengah: keterangan + meta sebaris -->
+            <div class="trx-main">
+              <div class="trx-title">{{ item.Keterangan || '—' }}</div>
+              <div class="trx-meta">
+                <span class="trx-date">{{ item.tanggal || '-' }}</span>
+                <span class="trx-dot">•</span>
+                <span class="trx-cat">{{ item.Kategori || '-' }}</span>
               </div>
             </div>
-            <div class="text-end flex-shrink-0">
-              <span
-                class="fw-bold fs-6"
+
+            <!-- Kanan: nominal + aksi ikon -->
+            <div class="trx-side flex-shrink-0">
+              <div
+                class="trx-amount"
                 :class="isKredit(item.Kredit_Debit) ? 'text-danger' : 'text-success'"
-              >{{ formatRupiah(item.Kredit_Debit) }}</span>
-              <div class="mt-1">
-                <span
-                  class="badge rounded-pill"
-                  :class="isKredit(item.Kredit_Debit) ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'"
-                >{{ isKredit(item.Kredit_Debit) ? 'Kredit' : 'Debit' }}</span>
+              >{{ (isKredit(item.Kredit_Debit) ? '−' : '+') + formatRupiah(Math.abs(Number(item.Kredit_Debit))) }}</div>
+              <div class="trx-actions">
+                <button
+                  type="button"
+                  class="trx-btn trx-btn-edit"
+                  title="Ubah"
+                  aria-label="Ubah transaksi"
+                  @click="openEditModal(item)"
+                >
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button
+                  type="button"
+                  class="trx-btn trx-btn-delete"
+                  title="Hapus"
+                  aria-label="Hapus transaksi"
+                  :disabled="deletingId === String(item.id_transaksi)"
+                  @click="handleDelete(item)"
+                >
+                  <span v-if="deletingId === String(item.id_transaksi)" class="spinner-border spinner-border-sm" role="status"></span>
+                  <i v-else class="bi bi-trash3"></i>
+                </button>
               </div>
             </div>
           </div>
-          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-            <button
-              type="button"
-              class="btn btn-outline-primary btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-1"
-              @click="openEditModal(item)"
-            >
-              <i class="bi bi-pencil"></i>
-              <span>Ubah</span>
-            </button>
-            <button
-              type="button"
-              class="btn btn-outline-danger btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-1"
-              :disabled="deletingId === String(item.id_transaksi)"
-              @click="handleDelete(item)"
-            >
-              <span v-if="deletingId === String(item.id_transaksi)" class="spinner-border spinner-border-sm" role="status"></span>
-              <template v-else>
-                <i class="bi bi-trash3"></i>
-                <span>Hapus</span>
-              </template>
-            </button>
+        </div>
+
+        <!-- Mobile Totals Card -->
+        <div class="rounded-3 border shadow-sm overflow-hidden mt-1">
+          <div class="bg-light px-3 py-2 small fw-bold text-muted text-uppercase border-bottom">Ringkasan</div>
+          <div class="p-3 d-flex flex-column gap-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="small text-muted">Total Debit</span>
+              <span class="fw-bold text-success">{{ formatRupiah(totalDebit) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="small text-muted">Total Kredit</span>
+              <span class="fw-bold text-danger">{{ formatRupiah(totalKredit) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-1">
+              <span class="small fw-semibold text-dark">Keseluruhan (Saldo)</span>
+              <span class="fw-bold" :class="totalKeseluruhan >= 0 ? 'text-success' : 'text-danger'">
+                {{ formatRupiah(totalKeseluruhan) }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -259,8 +303,8 @@ onMounted(() => {
               <th>Tanggal</th>
               <th>Keterangan</th>
               <th>Kategori</th>
-              <th>Tipe</th>
-              <th>Kredit / Debit</th>
+              <th class="text-success">Debit</th>
+              <th class="text-danger">Kredit</th>
               <th class="text-end">Aksi</th>
             </tr>
           </thead>
@@ -270,13 +314,12 @@ onMounted(() => {
               <td class="text-muted small">{{ item.tanggal || '-' }}</td>
               <td class="fw-semibold text-dark">{{ item.Keterangan }}</td>
               <td><span class="badge bg-light text-dark border">{{ item.Kategori || '-' }}</span></td>
-              <td>
-                <span
-                  class="badge rounded-pill"
-                  :class="isKredit(item.Kredit_Debit) ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'"
-                >{{ isKredit(item.Kredit_Debit) ? 'Kredit' : 'Debit' }}</span>
+              <td class="fw-bold text-success">
+                {{ !isKredit(item.Kredit_Debit) ? formatRupiah(item.Kredit_Debit) : '-' }}
               </td>
-              <td class="fw-bold" :class="isKredit(item.Kredit_Debit) ? 'text-danger' : 'text-success'">{{ formatRupiah(item.Kredit_Debit) }}</td>
+              <td class="fw-bold text-danger">
+                {{ isKredit(item.Kredit_Debit) ? formatRupiah(Math.abs(Number(item.Kredit_Debit))) : '-' }}
+              </td>
               <td class="text-end">
                 <div class="d-inline-flex gap-1">
                   <button
@@ -303,8 +346,24 @@ onMounted(() => {
               </td>
             </tr>
           </tbody>
+          <tfoot class="table-light fw-bold border-top border-2">
+            <tr>
+              <td colspan="4" class="text-end text-muted small pe-3">Total</td>
+              <td class="text-success">{{ formatRupiah(totalDebit) }}</td>
+              <td class="text-danger">{{ formatRupiah(totalKredit) }}</td>
+              <td></td>
+            </tr>
+            <tr class="border-top">
+              <td colspan="4" class="text-end text-muted small pe-3">Keseluruhan (Saldo)</td>
+              <td colspan="2" :class="totalKeseluruhan >= 0 ? 'text-success' : 'text-danger'">
+                {{ formatRupiah(totalKeseluruhan) }}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
+
     </div>
 
     <!-- Modal Form Tambah / Ubah Transaksi -->
@@ -417,7 +476,7 @@ onMounted(() => {
               />
             </div>
           </div>
-          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+          <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 pt-2 border-top">
             <button
               type="button"
               class="btn btn-light rounded-pill px-3 px-sm-4 fw-semibold text-muted"
@@ -456,10 +515,154 @@ onMounted(() => {
   backdrop-filter: blur(4px);
   z-index: 1050;
   animation: fadeIn 0.2s ease-in-out;
+  padding: 1rem;
+  overflow-y: auto;
 }
 
 .modal-dialog-custom {
   animation: slideDown 0.25s ease-out;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.form-control {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.input-group .form-control {
+  min-height: 48px;
+}
+
+.d-md-none .btn {
+  min-height: 44px;
+}
+
+/* ===== Mobile list: satu baris per transaksi ===== */
+.trx-list {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.9rem;
+  overflow: hidden;
+}
+
+.trx-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+.trx-row + .trx-row {
+  border-top: 1px solid #f1f3f5;
+}
+
+.trx-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.trx-in {
+  background: var(--bs-success-bg-subtle, #d1e7dd);
+  color: var(--bs-success, #198754);
+}
+
+.trx-out {
+  background: var(--bs-danger-bg-subtle, #f8d7da);
+  color: var(--bs-danger, #dc3545);
+}
+
+.trx-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.trx-title {
+  font-weight: 700;
+  color: #212529;
+  font-size: 0.88rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trx-meta {
+  font-size: 0.74rem;
+  color: #6c757d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.trx-dot {
+  margin: 0 0.3rem;
+  opacity: 0.6;
+}
+
+.trx-side {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.trx-amount {
+  font-weight: 800;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.trx-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.trx-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 50%;
+  border: 1px solid #dee2e6;
+  background: #fff;
+  color: #6c757d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+.trx-btn-edit {
+  color: var(--bs-primary, #0d6efd);
+  border-color: #cfe2ff;
+}
+
+.trx-btn-delete {
+  color: var(--bs-danger, #dc3545);
+  border-color: #f5c2c7;
+}
+
+.trx-btn:active {
+  transform: scale(0.94);
+}
+
+.form-check-input {
+  width: 20px;
+  height: 20px;
 }
 
 @keyframes fadeIn {
@@ -475,6 +678,36 @@ onMounted(() => {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* HP: tombol catat full-width + modal jadi bottom-sheet */
+@media (max-width: 575.98px) {
+  .transaksi-add-btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 0.9rem;
+  }
+
+  .modal-backdrop-custom {
+    padding: 0;
+    align-items: flex-end !important;
+  }
+
+  .modal-dialog-custom {
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 1.25rem !important;
+    border-top-right-radius: 1.25rem !important;
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
+
+  .modal-dialog-custom .btn {
+    min-height: 48px;
   }
 }
 </style>

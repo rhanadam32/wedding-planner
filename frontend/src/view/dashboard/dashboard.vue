@@ -90,7 +90,7 @@ const handleLogout = () => {
       />
 
       <!-- EMBED DYNAMIC CONTENT (ROUTER VIEW) -->
-      <main class="p-3 p-md-4 flex-grow-1">
+      <main class="p-2 p-sm-3 p-md-4 flex-grow-1 main-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -134,5 +134,25 @@ const handleLogout = () => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.main-content {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* HP: padding konten lebih rapat + cegah horizontal scroll */
+@media (max-width: 575.98px) {
+  .main-content {
+    padding: 0.5rem !important;
+  }
+
+  .main-content h4 {
+    font-size: 1.1rem;
+  }
+
+  .main-content .card {
+    border-radius: 1rem;
+  }
 }
 </style>

@@ -1,20 +1,49 @@
 <script setup lang="ts">
 import { ref, inject, computed, onMounted } from 'vue';
-import { authService, transaksiService, rencanaService, TamuServices, Transaksi, RencanaItem, Pengantin, User } from '../../services/api';
+import { authService, transaksiService, rencanaService, TamuServices, pengantinService, Transaksi, RencanaItem, Pengantin, User } from '../../services/api';
 
 const user: User = authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin', username: 'user', id_user: '' };
 
 // ============================================================
 // Inject dari dashboard.vue (layout parent)
 // ============================================================
-const weddingProfile = inject<ReturnType<typeof ref<Pengantin | null>>>('weddingProfile');
+const weddingProfileInjected = inject<ReturnType<typeof ref<Pengantin | null>>>('weddingProfile');
 const sisaHariInjected = inject<ReturnType<typeof ref<number | null>>>('sisaHari');
+
+// Local state – di-fetch langsung agar tidak bergantung pada timing inject
+const localWeddingProfile = ref<Pengantin | null>(null);
+
+// Gabungkan: prioritaskan local fetch, fallback ke inject dari parent
+const weddingData = computed<Pengantin | null>(() =>
+  localWeddingProfile.value ?? weddingProfileInjected?.value ?? null
+);
+
+const calculateSisaHari = (tglStr?: string): number | null => {
+  if (!tglStr) return null;
+  const target = new Date(tglStr);
+  if (isNaN(target.getTime())) return null;
+  const now = new Date();
+  const targetMid = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const nowMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.ceil((targetMid.getTime() - nowMid.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+const fetchWeddingProfile = async () => {
+  try {
+    const data = await pengantinService.getPengantin(user?.id_user);
+    if (data) localWeddingProfile.value = data;
+  } catch (err) {
+    console.warn('Gagal fetch wedding profile di dash-index:', err);
+  }
+};
 
 // ============================================================
 // State Data
 // ============================================================
 const transaksiTerakhir = ref<Transaksi[]>([]);
-const totalPengeluaran = ref(0);
+const totalSaldo = ref(0);
+const totalDebit = ref(0);
+const totalKredit = ref(0);
 const jumlahTransaksi = ref(0);
 
 const rencanaList = ref<RencanaItem[]>([]);
@@ -29,10 +58,10 @@ const isLoadingRencana = ref(true);
 const isLoadingTamu = ref(true);
 
 // ============================================================
-// Computed: Wedding Info dari inject
+// Computed: Wedding Info
 // ============================================================
 const namaPassangan = computed(() => {
-  const p = weddingProfile?.value;
+  const p = weddingData.value;
   if (!p) return '— & —';
   const pria = p.calon_pengantin_pria?.trim() || '—';
   const wanita = p.calon_pengantin_wanita?.trim() || '—';
@@ -40,7 +69,7 @@ const namaPassangan = computed(() => {
 });
 
 const tanggalPernikahan = computed(() => {
-  const tgl = weddingProfile?.value?.tanggal_pernikahan;
+  const tgl = weddingData.value?.tanggal_pernikahan;
   if (!tgl) return '— Belum diisi —';
   const d = new Date(tgl);
   if (isNaN(d.getTime())) return tgl;
@@ -48,10 +77,16 @@ const tanggalPernikahan = computed(() => {
 });
 
 const lokasiPernikahan = computed(() => {
-  return weddingProfile?.value?.Lokasi?.trim() || '— Belum diisi —';
+  return weddingData.value?.Lokasi?.trim() || '— Belum diisi —';
 });
 
-const sisaHari = computed(() => sisaHariInjected?.value ?? null);
+const sisaHari = computed(() => {
+  // Gunakan inject dari parent jika tersedia, else hitung sendiri
+  if (sisaHariInjected?.value !== null && sisaHariInjected?.value !== undefined) {
+    return sisaHariInjected.value;
+  }
+  return calculateSisaHari(weddingData.value?.tanggal_pernikahan ?? undefined);
+});
 
 const sisaHariLabel = computed(() => {
   const n = sisaHari.value;
@@ -70,7 +105,7 @@ const sisaHariSubtext = computed(() => {
 });
 
 const profilBelumLengkap = computed(() => {
-  const p = weddingProfile?.value;
+  const p = weddingData.value;
   return !p?.calon_pengantin_pria && !p?.calon_pengantin_wanita;
 });
 
@@ -98,21 +133,21 @@ const ringkasan = computed(() => [
     bg: 'bg-primary-subtle text-primary'
   },
   {
-    label: 'Progres Persiapan',
+    label: 'Progress',
     nilai: progresRencana.value,
     subtext: progresSubtext.value,
     icon: 'bi bi-check2-circle',
     bg: 'bg-success-subtle text-success'
   },
   {
-    label: 'Total Pengeluaran',
-    nilai: isLoadingTransaksi.value ? '...' : formatRupiah(totalPengeluaran.value),
-    subtext: isLoadingTransaksi.value ? 'Memuat...' : `${jumlahTransaksi.value} transaksi tercatat`,
+    label: 'Tabungan',
+    nilai: isLoadingTransaksi.value ? '...' : formatRupiah(totalSaldo.value),
+    subtext: isLoadingTransaksi.value ? 'Memuat...' : `Debit ${formatRupiah(totalDebit.value)} · Kredit ${formatRupiah(totalKredit.value)}`,
     icon: 'bi bi-wallet2',
     bg: 'bg-warning-subtle text-warning'
   },
   {
-    label: 'Tamu Undangan',
+    label: 'Tamu',
     nilai: isLoadingTamu.value ? '...' : `${jumlahTamu.value} Orang`,
     subtext: isLoadingTamu.value ? 'Memuat...' : `${jumlahTamuHadir.value} sudah konfirmasi hadir`,
     icon: 'bi bi-people-fill',
@@ -144,7 +179,15 @@ const fetchTransaksi = async () => {
   try {
     const data = await transaksiService.getTransaksi(user?.id_user);
     transaksiTerakhir.value = [...data].slice(-4).reverse();
-    totalPengeluaran.value = data.reduce((sum, item) => sum + (Number(item.Kredit_Debit) || 0), 0);
+    totalDebit.value = data.reduce((sum, item) => {
+      const v = Number(item.Kredit_Debit) || 0;
+      return sum + (v > 0 ? v : 0);
+    }, 0);
+    totalKredit.value = data.reduce((sum, item) => {
+      const v = Number(item.Kredit_Debit) || 0;
+      return sum + (v < 0 ? Math.abs(v) : 0);
+    }, 0);
+    totalSaldo.value = totalDebit.value - totalKredit.value;
     jumlahTransaksi.value = data.length;
   } catch (error) {
     console.error('Gagal memuat transaksi:', error);
@@ -181,7 +224,7 @@ const fetchTamu = async () => {
 };
 
 onMounted(async () => {
-  await Promise.all([fetchTransaksi(), fetchRencana(), fetchTamu()]);
+  await Promise.all([fetchWeddingProfile(), fetchTransaksi(), fetchRencana(), fetchTamu()]);
 });
 </script>
 
@@ -204,7 +247,7 @@ onMounted(async () => {
         </div>
 
         <!-- Countdown Box -->
-        <div class="w-auto w-md-auto text-center text-md-end bg-light p-3 rounded-4 border flex-shrink-0" style="min-width: 140px;">
+        <div class="countdown-box w-auto w-md-auto text-center bg-light p-3 rounded-4 border flex-shrink-0" style="min-width: 140px;">
           <span v-if="sisaHari === null" class="text-muted small d-block text-center">Tanggal<br class="d-none d-md-block"> belum diisi</span>
           <template v-else>
             <span
@@ -220,19 +263,19 @@ onMounted(async () => {
     </div>
 
     <!-- ===== 4 KARTU STATISTIK ===== -->
-    <div class="row g-3">
-      <div v-for="(item, idx) in ringkasan" :key="idx" class="col-12 col-sm-6 col-xl-3">
-        <div class="card border-0 rounded-4 shadow-sm p-3 p-sm-4 bg-white h-100">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="overflow-hidden me-2">
-              <small class="text-muted d-block fw-semibold text-truncate">{{ item.label }}</small>
-              <h5 class="fw-bold mb-0 mt-1 text-dark text-break">{{ item.nilai }}</h5>
+    <div class="row g-2 g-sm-3 stat-grid">
+      <div v-for="(item, idx) in ringkasan" :key="idx" class="col-6 col-lg-4">
+        <div class="card border-0 rounded-4 shadow-sm p-2 p-sm-4 bg-white h-100 stat-card">
+          <div class="d-flex align-items-center justify-content-between mb-1 mb-sm-2 gap-1">
+            <div class="overflow-hidden me-1 me-sm-2 flex-grow-1" style="min-width: 0;">
+              <small class="text-muted d-block fw-semibold text-truncate stat-label">{{ item.label }}</small>
+              <h5 class="fw-bold mb-0 mt-1 text-dark stat-value">{{ item.nilai }}</h5>
             </div>
-            <div :class="item.bg" class="rounded-3 p-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px;">
+            <div :class="item.bg" class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 stat-icon" style="width: 48px; height: 48px;">
               <i :class="item.icon" class="fs-4"></i>
             </div>
           </div>
-          <small class="text-muted text-truncate d-block" style="font-size: 0.75rem;">{{ item.subtext }}</small>
+          <small class="text-muted d-block stat-subtext">{{ item.subtext }}</small>
         </div>
       </div>
     </div>
@@ -336,29 +379,61 @@ onMounted(async () => {
             <p class="small mb-0">Belum ada transaksi. <router-link to="/dashboard/transaksi">Tambah sekarang</router-link></p>
           </div>
 
-          <div v-else class="d-flex flex-column gap-2">
+          <div v-else class="dash-trx-list">
             <div
               v-for="trx in transaksiTerakhir"
               :key="trx.id_transaksi"
-              class="p-3 rounded-3 border bg-light d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2"
+              class="dash-trx-row"
             >
-              <div class="overflow-hidden flex-grow-1">
-                <strong class="d-block text-dark small text-break">{{ trx.Keterangan || '—' }}</strong>
-                <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
-                  <span class="badge bg-white text-dark border" style="font-size: 0.68rem;">{{ trx.Kategori || '-' }}</span>
-                  <small class="text-muted" style="font-size: 0.7rem;">{{ trx.tanggal || '' }}</small>
+              <!-- Ikon tipe -->
+              <div
+                class="dash-trx-icon flex-shrink-0"
+                :class="Number(trx.Kredit_Debit) < 0 ? 'dash-trx-out' : 'dash-trx-in'"
+              >
+                <i
+                  class="bi"
+                  :class="Number(trx.Kredit_Debit) < 0 ? 'bi-arrow-up-right' : 'bi-arrow-down-left'"
+                ></i>
+              </div>
+
+              <!-- Tengah: keterangan + meta sebaris -->
+              <div class="dash-trx-main">
+                <div class="dash-trx-title" :title="trx.Keterangan || '—'">{{ trx.Keterangan || '—' }}</div>
+                <div class="dash-trx-meta">
+                  <span>{{ trx.tanggal || '-' }}</span>
+                  <span class="dash-trx-dot">•</span>
+                  <span>{{ trx.Kategori || '-' }}</span>
                 </div>
               </div>
-              <div class="text-sm-end flex-shrink-0">
-                <span class="fw-bold text-dark small">{{ formatRupiah(trx.Kredit_Debit) }}</span>
+
+              <!-- Kanan: nominal + badge -->
+              <div class="dash-trx-side flex-shrink-0">
+                <div
+                  class="dash-trx-amount"
+                  :class="Number(trx.Kredit_Debit) < 0 ? 'text-danger' : 'text-success'"
+                >{{ (Number(trx.Kredit_Debit) < 0 ? '−' : '+') + formatRupiah(Math.abs(Number(trx.Kredit_Debit))) }}</div>
+                <span
+                  class="badge rounded-pill dash-trx-badge"
+                  :class="Number(trx.Kredit_Debit) >= 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'"
+                >{{ Number(trx.Kredit_Debit) >= 0 ? 'Debit' : 'Kredit' }}</span>
               </div>
             </div>
           </div>
 
           <!-- Total -->
-          <div v-if="!isLoadingTransaksi && jumlahTransaksi > 0" class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-            <small class="text-muted fw-semibold">Total Pengeluaran</small>
-            <span class="fw-bold text-warning">{{ formatRupiah(totalPengeluaran) }}</span>
+          <div v-if="!isLoadingTransaksi && jumlahTransaksi > 0" class="mt-3 pt-2 border-top">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <small class="text-muted">Total Debit</small>
+              <span class="fw-semibold text-success small">{{ formatRupiah(totalDebit) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <small class="text-muted">Total Kredit</small>
+              <span class="fw-semibold text-danger small">{{ formatRupiah(totalKredit) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-1">
+              <small class="fw-bold text-dark">Saldo</small>
+              <span class="fw-bold" :class="totalSaldo >= 0 ? 'text-success' : 'text-danger'">{{ formatRupiah(totalSaldo) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -389,5 +464,176 @@ onMounted(async () => {
 <style scoped>
 .cursor-pointer {
   cursor: pointer;
+}
+
+.stat-value {
+  font-size: 1.15rem;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+.stat-subtext {
+  font-size: 0.75rem;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  min-height: 2.1em;
+}
+
+.stat-icon {
+  padding: 0.75rem;
+}
+
+/* ===== Widget Transaksi Terakhir: list satu baris ala mutasi ===== */
+.dash-trx-list {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.9rem;
+  overflow: hidden;
+}
+
+.dash-trx-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+.dash-trx-row + .dash-trx-row {
+  border-top: 1px solid #f1f3f5;
+}
+
+.dash-trx-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.dash-trx-in {
+  background: var(--bs-success-bg-subtle, #d1e7dd);
+  color: var(--bs-success, #198754);
+}
+
+.dash-trx-out {
+  background: var(--bs-danger-bg-subtle, #f8d7da);
+  color: var(--bs-danger, #dc3545);
+}
+
+.dash-trx-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dash-trx-title {
+  font-weight: 700;
+  color: #212529;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-trx-meta {
+  font-size: 0.72rem;
+  color: #6c757d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.dash-trx-dot {
+  margin: 0 0.3rem;
+  opacity: 0.6;
+}
+
+.dash-trx-side {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.dash-trx-amount {
+  font-weight: 800;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.dash-trx-badge {
+  font-size: 0.62rem;
+}
+
+/* ===== HP: banner full-width, statistik 2 kolom rapat ===== */
+@media (max-width: 575.98px) {
+  .dash-content {
+    gap: 0.75rem;
+  }
+
+  .dash-content h3 {
+    font-size: 1.3rem;
+    line-height: 1.3;
+  }
+
+  .countdown-box {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .countdown-box .display-6 {
+    font-size: 2rem;
+  }
+
+  .stat-grid {
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+  }
+
+  .stat-grid > div {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+
+  .stat-card {
+    border-radius: 1rem;
+  }
+
+  .stat-value {
+    font-size: 0.92rem;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+  }
+
+  .stat-subtext {
+    font-size: 0.68rem;
+  }
+
+  .stat-icon {
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0.5rem;
+  }
+
+  .stat-icon i {
+    font-size: 1.1rem !important;
+  }
 }
 </style>
