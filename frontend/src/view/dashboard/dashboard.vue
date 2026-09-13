@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, provide } from 'vue';
 import { useRouter } from 'vue-router';
-import { authService, pengantinService, Pengantin } from '../../services/api';
+import { authService, pengantinService, Pengantin, User } from '../../services/api';
 
 import Sidebar from '../../components/layout/sidebar.vue';
 import Header from '../../components/layout/header.vue';
 import Footer from '../../components/layout/footer.vue';
 
 const router = useRouter();
-const user = authService.getUser() || { name: 'Pengantin' };
+const user: User = authService.getUser() || { name: 'Pengantin', username: 'user', id_user: '' };
 
 const isSidebarOpen = ref(false); // State mobile sidebar (buka/tutup)
 const weddingProfile = ref<Pengantin | null>(null);
@@ -27,10 +27,13 @@ const calculateSisaHari = (tglStr?: string): number | null => {
 
 const fetchWeddingData = async () => {
   try {
-    const data = await pengantinService.getPengantin();
+    const data = await pengantinService.getPengantin(user?.id_user);
     if (data) {
       weddingProfile.value = data;
       sisaHari.value = calculateSisaHari(data.tanggal_pernikahan);
+    } else {
+      weddingProfile.value = null;
+      sisaHari.value = null;
     }
   } catch (err) {
     console.error('Gagal mengambil data profil pernikahan di layout:', err);
@@ -87,7 +90,7 @@ const handleLogout = () => {
       />
 
       <!-- EMBED DYNAMIC CONTENT (ROUTER VIEW) -->
-      <main class="p-3 p-md-4 flex-grow-1">
+      <main class="p-2 p-sm-3 p-md-4 flex-grow-1 main-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -131,5 +134,25 @@ const handleLogout = () => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.main-content {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* HP: padding konten lebih rapat + cegah horizontal scroll */
+@media (max-width: 575.98px) {
+  .main-content {
+    padding: 0.5rem !important;
+  }
+
+  .main-content h4 {
+    font-size: 1.1rem;
+  }
+
+  .main-content .card {
+    border-radius: 1rem;
+  }
 }
 </style>

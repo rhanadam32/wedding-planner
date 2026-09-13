@@ -11,7 +11,7 @@ const route = useRoute();
 const menus = [
     { key: 'dashboard', name: 'dashboard', label: 'Dashboard', icon: 'bi bi-grid-1x2-fill' },
     { key: 'rencana', name: 'rencana', label: 'Rencana', icon: 'bi bi-calendar2-check-fill' },
-    { key: 'transaksi', name: 'transaksi', label: 'Transaksi', icon: 'bi bi-wallet2' },
+    { key: 'transaksi', name: 'transaksi', label: 'Tabungan', icon: 'bi bi-wallet2' },
     { key: 'tamu', name: 'tamu', label: 'Tamu Undangan', icon: 'bi bi-people-fill' },
     { key: 'akun', name: 'akun', label: 'Akun', icon: 'bi bi-person-circle' },
 ];

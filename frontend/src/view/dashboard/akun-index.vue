@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
-import { authService, pengantinService, Pengantin } from '../../services/api';
+import { authService, pengantinService, Pengantin, User } from '../../services/api';
 
 const refreshWeddingData = inject<() => Promise<void>>('refreshWeddingData', () => Promise.resolve());
-const user = authService.getUser() || { name: 'Raihan', username: 'admin' };
+const user: User = authService.getUser() || { name: 'Pengantin', username: 'admin', id_user: '' };
 
 const isLoading = ref(true);
 const isSubmitting = ref(false);
@@ -12,6 +12,7 @@ const errorMessage = ref('');
 
 const profil = ref<Pengantin>({
   id: '',
+  id_user: user?.id_user ? String(user.id_user) : '',
   calon_pengantin_pria: '',
   calon_pengantin_wanita: '',
   tanggal_pernikahan: '',
@@ -22,14 +23,26 @@ const loadProfil = async () => {
   isLoading.value = true;
   errorMessage.value = '';
   try {
-    const data = await pengantinService.getPengantin();
+    const currentIdUser = user?.id_user;
+    const data = await pengantinService.getPengantin(currentIdUser);
     if (data) {
       profil.value = {
         id: data.id ? String(data.id) : '',
+        id_user: data.id_user ? String(data.id_user) : (currentIdUser ? String(currentIdUser) : ''),
         calon_pengantin_pria: data.calon_pengantin_pria || '',
         calon_pengantin_wanita: data.calon_pengantin_wanita || '',
         tanggal_pernikahan: data.tanggal_pernikahan || '',
         Lokasi: data.Lokasi || (data as any).lokasi || ''
+      };
+    } else {
+      // Belum ada data untuk id_user ini
+      profil.value = {
+        id: '',
+        id_user: currentIdUser ? String(currentIdUser) : '',
+        calon_pengantin_pria: '',
+        calon_pengantin_wanita: '',
+        tanggal_pernikahan: '',
+        Lokasi: ''
       };
     }
   } catch (err: any) {
@@ -51,6 +64,9 @@ const handleSimpan = async () => {
 
   isSubmitting.value = true;
   try {
+    if (user?.id_user) {
+      profil.value.id_user = String(user.id_user);
+    }
     const res = await pengantinService.savePengantin(profil.value);
     if (res && res.status === 'success') {
       successMessage.value = res.message || 'Data pernikahan berhasil disimpan!';
@@ -78,12 +94,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="card border-0 rounded-4 shadow-sm p-4 bg-white">
+  <div class="card border-0 rounded-4 shadow-sm p-3 p-sm-4 bg-white account-card">
     <div class="mb-4 pb-2 border-bottom">
       <h4 class="fw-bold mb-1 text-dark">
-        <i class="bi bi-person-circle text-primary me-2"></i>Akun & Data Pernikahan
+        <i class="bi bi-hearts text-danger me-2"></i>Data Pernikahan
       </h4>
-      <p class="text-muted small mb-0">Informasi akun pengguna dan data acara pernikahan</p>
+      <p class="text-muted small mb-0">Isi informasi calon pengantin, tanggal, dan lokasi acara pernikahan</p>
     </div>
 
     <!-- Alert Notifikasi -->
@@ -109,16 +125,11 @@ onMounted(() => {
 
     <!-- Form Konten -->
     <form v-else @submit.prevent="handleSimpan" class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Nama Pengguna (Login)</label>
-        <input type="text" class="form-control bg-light" :value="user.name || user.username" disabled />
-      </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Tanggal Pernikahan</label>
-        <input type="date" class="form-control" v-model="profil.tanggal_pernikahan" />
-      </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Nama Calon Pengantin Pria</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-person-fill text-primary me-1"></i>Nama Calon Pengantin Pria
+          <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           class="form-control"
@@ -126,8 +137,11 @@ onMounted(() => {
           v-model="profil.calon_pengantin_pria"
         />
       </div>
-      <div class="col-md-6">
-        <label class="form-label small fw-semibold">Nama Calon Pengantin Wanita</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-person-fill text-danger me-1"></i>Nama Calon Pengantin Wanita
+          <span class="text-danger">*</span>
+        </label>
         <input
           type="text"
           class="form-control"
@@ -135,8 +149,16 @@ onMounted(() => {
           v-model="profil.calon_pengantin_wanita"
         />
       </div>
-      <div class="col-12">
-        <label class="form-label small fw-semibold">Lokasi / Kota Acara</label>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-calendar-heart me-1 text-warning"></i>Tanggal Pernikahan
+        </label>
+        <input type="date" class="form-control" v-model="profil.tanggal_pernikahan" />
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label small fw-semibold">
+          <i class="bi bi-geo-alt-fill me-1 text-success"></i>Lokasi / Kota Acara
+        </label>
         <input
           type="text"
           class="form-control"
@@ -144,10 +166,13 @@ onMounted(() => {
           v-model="profil.Lokasi"
         />
       </div>
-      <div class="col-12 text-end mt-3">
+      <div class="col-12 d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-2 mt-3 pt-3 border-top account-footer">
+        <small class="text-muted text-center text-sm-start">
+          <i class="bi bi-shield-lock me-1"></i>Data disimpan untuk akun: <strong>{{ user.name || user.username }}</strong>
+        </small>
         <button
           type="submit"
-          class="btn btn-primary rounded-pill px-4 fw-semibold"
+          class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm account-submit"
           :disabled="isSubmitting"
         >
           <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
@@ -158,3 +183,32 @@ onMounted(() => {
     </form>
   </div>
 </template>
+
+<style scoped>
+.account-card .form-control {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.account-submit {
+  min-height: 48px;
+}
+
+/* HP: tombol simpan full-width agar mudah dijangkau jempol */
+@media (max-width: 575.98px) {
+  .account-card {
+    border-radius: 1rem;
+  }
+
+  .account-footer {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-bottom: 0.25rem;
+  }
+
+  .account-submit {
+    width: 100%;
+  }
+}
+</style>

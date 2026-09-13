@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { TamuServices, Tamu } from '../../services/api';
+import { authService, TamuServices, Tamu, User } from '../../services/api';
 
+const user = ref<User | null>(authService.getUser());
 const isLoading = ref(true);
 const daftarTamu = ref<Tamu[]>([]);
 const showModal = ref(false);
@@ -20,9 +21,14 @@ const form = ref(emptyForm());
 
 const fetchtamu = async (showLoading = true) => {
   if (showLoading) isLoading.value = true;
+  user.value = authService.getUser();
   try {
-    const data = await TamuServices.getTamu();
-    daftarTamu.value = data;
+    const data = await TamuServices.getTamu(user.value?.id_user);
+    const uid = String(user.value?.id_user || '').trim().toLowerCase();
+    // Saring di sisi client agar tiap akun hanya melihat data miliknya (id_user)
+    daftarTamu.value = uid
+      ? data.filter((item) => String(item.id_user || '').trim().toLowerCase() === uid)
+      : data;
   } catch (error) {
     console.error('Gagal memuat data tamu:', error);
   } finally {
@@ -67,11 +73,13 @@ const handleSubmit = async () => {
   isSubmitting.value = true;
 
   try {
+    const currentUser = authService.getUser();
     const payload = {
       nama_tamu: nama,
       kategori: String(form.value.kategori || '').trim(),
       kontak: String(form.value.kontak ?? '').trim(),
-      konfirmasi: form.value.konfirmasi
+      konfirmasi: form.value.konfirmasi,
+      id_user: currentUser?.id_user
     };
 
     if (editingId.value) {
@@ -102,7 +110,7 @@ const handleSubmit = async () => {
       }
 
       if (res && res.data) {
-        daftarTamu.value.push(res.data);
+        daftarTamu.value.push({ ...res.data, id_user: res.data.id_user ?? payload.id_user });
       }
     }
 
@@ -148,9 +156,13 @@ onMounted(() => {
         <h4 class="fw-bold mb-1 text-dark">
           <i class="bi bi-people-fill text-info me-2"></i>Daftar Tamu Undangan
         </h4>
-        <p class="text-muted small mb-0">Kelola daftar tamu keluarga, sahabat, dan status kehadiran</p>
+        <p class="text-muted small mb-0">
+          Kelola daftar tamu keluarga, sahabat, dan status kehadiran khusus akun
+          <strong class="text-primary">{{ user?.name || user?.username || 'Pengantin' }}</strong>
+          <span v-if="user?.id_user" class="badge bg-light text-muted border ms-1">ID: {{ user.id_user }}</span>
+        </p>
       </div>
-      <button class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm align-self-start align-self-sm-center" @click="openCreateModal">
+      <button class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-sm tamu-add-btn" @click="openCreateModal">
         <i class="bi bi-person-plus me-1"></i> Tambah Tamu
       </button>
     </div>
@@ -190,6 +202,9 @@ onMounted(() => {
                   }"
                 >
                   {{ tamu.konfirmasi }}
+                </span>
+                <span v-if="tamu.id_user" class="badge bg-light text-secondary border" style="font-size: 0.65rem;">
+                  ID: {{ tamu.id_user }}
                 </span>
               </div>
             </div>
@@ -233,6 +248,7 @@ onMounted(() => {
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr class="small text-muted text-uppercase">
+              <th>ID User</th>
               <th>Nama Tamu</th>
               <th>Kategori</th>
               <th>Kontak (WA)</th>
@@ -242,6 +258,7 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-for="tamu in daftarTamu" :key="tamu.id || tamu.nama_tamu">
+              <td class="text-muted small">{{ tamu.id_user || '-' }}</td>
               <td class="fw-semibold text-dark">{{ tamu.nama_tamu }}</td>
               <td><span class="badge bg-light text-dark border">{{ tamu.kategori || '-' }}</span></td>
               <td>
@@ -367,7 +384,7 @@ onMounted(() => {
           </div>
 
           <!-- Modal Footer -->
-          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+          <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 pt-2 border-top">
             <button
               type="button"
               class="btn btn-light rounded-pill px-3 px-sm-4 fw-semibold text-muted"
@@ -406,10 +423,27 @@ onMounted(() => {
   backdrop-filter: blur(4px);
   z-index: 1050;
   animation: fadeIn 0.2s ease-in-out;
+  padding: 1rem;
+  overflow-y: auto;
 }
 
 .modal-dialog-custom {
   animation: slideDown 0.25s ease-out;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.form-control,
+.form-select {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.d-md-none .btn {
+  min-height: 44px;
 }
 
 @keyframes fadeIn {
@@ -425,6 +459,36 @@ onMounted(() => {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* HP: tombol tambah full-width + modal jadi bottom-sheet */
+@media (max-width: 575.98px) {
+  .tamu-add-btn {
+    width: 100%;
+    min-height: 44px;
+    font-size: 0.9rem;
+  }
+
+  .modal-backdrop-custom {
+    padding: 0;
+    align-items: flex-end !important;
+  }
+
+  .modal-dialog-custom {
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 1.25rem !important;
+    border-top-right-radius: 1.25rem !important;
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
+
+  .modal-dialog-custom .btn {
+    min-height: 48px;
   }
 }
 </style>
