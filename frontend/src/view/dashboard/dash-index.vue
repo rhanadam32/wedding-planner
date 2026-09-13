@@ -2,7 +2,77 @@
 import { ref, inject, computed, onMounted } from 'vue';
 import { authService, transaksiService, rencanaService, TamuServices, pengantinService, Transaksi, RencanaItem, Pengantin, User } from '../../services/api';
 
-const user: User = authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin', username: 'user', id_user: '' };
+const user = ref<User>(authService.getUser() || { name: 'Pengantin', role: 'Calon Pengantin', username: 'user', id_user: '' });
+
+// Ambil uid aktif selalu dari cookie (agar tidak stale setelah ganti akun).
+// Kembalikan apa adanya (hanya trim) agar request ke backend tidak berubah;
+// normalisasi case-insensitive hanya dilakukan saat perbandingan di isOwnedByUser.
+const getActiveUid = (): string => {
+  const fresh = authService.getUser();
+  if (fresh) user.value = fresh;
+  const raw = fresh?.id_user ?? fresh?.id ?? user.value?.id_user ?? '';
+  return String(raw ?? '').trim();
+};
+
+// Kandidat uid aktif (id_user, id, username) — dinormalisasi lowercase+trim.
+// Dipakai agar data legacy yang tersimpan sebagai username tetap kecocokan.
+const getUidCandidates = (): string[] => {
+  const fresh = authService.getUser();
+  const rawList = [fresh?.id_user, (fresh as User)?.id, fresh?.username];
+  const out: string[] = [];
+  for (const r of rawList) {
+    const norm = String(r ?? '').trim().toLowerCase();
+    if (norm && !out.includes(norm)) out.push(norm);
+  }
+  return out;
+};
+
+// Ambil field id_user dari item secara toleran:
+// dukung varian key (id_user, idUser, ID_USER, "id user", userid, user, dll)
+// karena header Sheet bisa berbeda-beda.
+const pickItemUid = (item: Record<string, unknown>): string => {
+  if (!item || typeof item !== 'object') return '';
+  const keys = Object.keys(item);
+  // Prioritas: key persis id_user dulu
+  const direct = (item as Record<string, unknown>)['id_user']
+    ?? (item as Record<string, unknown>)['idUser']
+    ?? (item as Record<string, unknown>)['ID_USER'];
+  if (direct !== undefined && direct !== null && String(direct).trim() !== '') {
+    return String(direct).trim().toLowerCase();
+  }
+  const foundKey = keys.find((k) => {
+    const c = k.toLowerCase().replace(/[\s_]+/g, '');
+    return c === 'iduser' || c === 'userid' || c === 'user';
+  });
+  if (foundKey) return String((item as Record<string, unknown>)[foundKey] ?? '').trim().toLowerCase();
+  return '';
+};
+
+// Filter menurut field id_user: cocok jika uid item ada di kandidat uid aktif.
+// Data legacy tanpa id_user dikembalikan sebagai fallback (lihat filterOwned)
+// agar counter tidak 0 padahal data ada.
+const isOwnedByUser = (itemIdUser: unknown, uid: string): boolean => {
+  const candidates = getUidCandidates();
+  // uid param bisa dari getActiveUid (trim saja) — normalisasi di sini
+  const uidNorm = String(uid ?? '').trim().toLowerCase();
+  if (uidNorm && !candidates.includes(uidNorm)) candidates.push(uidNorm);
+  if (candidates.length === 0) return false;
+  return candidates.includes(String(itemIdUser ?? '').trim().toLowerCase());
+};
+
+// Saring list milik user aktif. Jika hasil strict kosong tapi backend
+// mengembalikan data (misal data legacy tanpa id_user), pakai data
+// tanpa id_user sebagai fallback agar counter tetap muncul.
+// Data milik user LAIN (id_user terisi beda) tetap tidak ikut.
+const filterOwned = <T extends Record<string, unknown>>(data: T[]): T[] => {
+  const strict = data.filter((item) => isOwnedByUser(pickItemUid(item), getActiveUid()));
+  if (strict.length > 0) return strict;
+  if (data.length > 0) {
+    const legacy = data.filter((item) => !pickItemUid(item));
+    if (legacy.length > 0) return legacy;
+  }
+  return strict;
+};
 
 // ============================================================
 // Inject dari dashboard.vue (layout parent)
@@ -13,10 +83,16 @@ const sisaHariInjected = inject<ReturnType<typeof ref<number | null>>>('sisaHari
 // Local state – di-fetch langsung agar tidak bergantung pada timing inject
 const localWeddingProfile = ref<Pengantin | null>(null);
 
-// Gabungkan: prioritaskan local fetch, fallback ke inject dari parent
-const weddingData = computed<Pengantin | null>(() =>
-  localWeddingProfile.value ?? weddingProfileInjected?.value ?? null
-);
+// Gabungkan: prioritaskan local fetch milik uid aktif.
+// Fallback ke inject HANYA jika id_user-nya cocok — cegah profil akun lain bocor saat timing fetch.
+const weddingData = computed<Pengantin | null>(() => {
+  if (localWeddingProfile.value) return localWeddingProfile.value;
+  const injected = weddingProfileInjected?.value ?? null;
+  if (!injected) return null;
+  const uid = String(authService.getUser()?.id_user ?? authService.getUser()?.id ?? '').trim().toLowerCase();
+  if (!uid) return null;
+  return String(injected.id_user ?? '').trim().toLowerCase() === uid ? injected : null;
+});
 
 const calculateSisaHari = (tglStr?: string): number | null => {
   if (!tglStr) return null;
@@ -30,8 +106,14 @@ const calculateSisaHari = (tglStr?: string): number | null => {
 
 const fetchWeddingProfile = async () => {
   try {
-    const data = await pengantinService.getPengantin(user?.id_user);
-    if (data) localWeddingProfile.value = data;
+    const uid = getActiveUid();
+    const data = await pengantinService.getPengantin(uid);
+    // Pastikan profil yang dipakai benar milik uid aktif
+    if (data && isOwnedByUser((data as Pengantin).id_user, uid)) {
+      localWeddingProfile.value = data;
+    } else {
+      localWeddingProfile.value = null;
+    }
   } catch (err) {
     console.warn('Gagal fetch wedding profile di dash-index:', err);
   }
@@ -174,21 +256,28 @@ const formatRupiah = (value: number | string) => {
 // ============================================================
 // Fetch Data
 // ============================================================
+// Normalisasi status konfirmasi: 'hadir' / 'Hadir ' / 'HADIR' → 'hadir'
+const normKonfirmasi = (v: unknown): string => String(v ?? '').trim().toLowerCase();
+const normStatus = (v: unknown): string => String(v ?? '').trim().toLowerCase();
+
 const fetchTransaksi = async () => {
   isLoadingTransaksi.value = true;
   try {
-    const data = await transaksiService.getTransaksi(user?.id_user);
-    transaksiTerakhir.value = [...data].slice(-4).reverse();
-    totalDebit.value = data.reduce((sum, item) => {
+    const uid = getActiveUid();
+    const data = await transaksiService.getTransaksi(uid);
+    // Pakai filterOwned (toleran varian key id_user) menurut field id_user
+    const mine = filterOwned((Array.isArray(data) ? data : []) as unknown as Record<string, unknown>[]) as unknown as Transaksi[];
+    transaksiTerakhir.value = [...mine].slice(-4).reverse();
+    totalDebit.value = mine.reduce((sum, item) => {
       const v = Number(item.Kredit_Debit) || 0;
       return sum + (v > 0 ? v : 0);
     }, 0);
-    totalKredit.value = data.reduce((sum, item) => {
+    totalKredit.value = mine.reduce((sum, item) => {
       const v = Number(item.Kredit_Debit) || 0;
       return sum + (v < 0 ? Math.abs(v) : 0);
     }, 0);
     totalSaldo.value = totalDebit.value - totalKredit.value;
-    jumlahTransaksi.value = data.length;
+    jumlahTransaksi.value = mine.length;
   } catch (error) {
     console.error('Gagal memuat transaksi:', error);
   } finally {
@@ -199,10 +288,13 @@ const fetchTransaksi = async () => {
 const fetchRencana = async () => {
   isLoadingRencana.value = true;
   try {
-    const data = await rencanaService.getRencana(user?.id_user);
-    rencanaList.value = data;
-    jumlahRencana.value = data.length;
-    jumlahSelesai.value = data.filter(r => r.status === 'selesai').length;
+    const uid = getActiveUid();
+    const data = await rencanaService.getRencana(uid);
+    // Pakai filterOwned (toleran varian key id_user) menurut field id_user
+    const mine = filterOwned((Array.isArray(data) ? data : []) as unknown as Record<string, unknown>[]) as unknown as RencanaItem[];
+    rencanaList.value = mine;
+    jumlahRencana.value = mine.length;
+    jumlahSelesai.value = mine.filter(r => normStatus(r.status) === 'selesai').length;
   } catch (error) {
     console.error('Gagal memuat rencana:', error);
   } finally {
@@ -213,9 +305,15 @@ const fetchRencana = async () => {
 const fetchTamu = async () => {
   isLoadingTamu.value = true;
   try {
-    const data = await TamuServices.getTamu(user?.id_user);
-    jumlahTamu.value = data.length;
-    jumlahTamuHadir.value = data.filter(t => t.konfirmasi === 'Hadir').length;
+    const uid = getActiveUid();
+    const data = await TamuServices.getTamu(uid);
+    const raw = Array.isArray(data) ? data : [];
+    // Pakai filterOwned (toleran varian key id_user) menurut field id_user,
+    // fallback ke data legacy tanpa id_user agar counter tidak 0 padahal data ada
+    const mine = filterOwned(raw as unknown as Record<string, unknown>[]) as unknown as typeof raw;
+    jumlahTamu.value = mine.length;
+    jumlahTamuHadir.value = mine.filter(t => normKonfirmasi((t as unknown as Record<string, unknown>)['konfirmasi']) === 'hadir').length;
+    console.debug('[dash-index] tamu:', { uid, candidates: getUidCandidates(), rawCount: raw.length, mineCount: mine.length, sample: raw[0] });
   } catch (error) {
     console.error('Gagal memuat tamu:', error);
   } finally {
@@ -224,6 +322,7 @@ const fetchTamu = async () => {
 };
 
 onMounted(async () => {
+  getActiveUid();
   await Promise.all([fetchWeddingProfile(), fetchTransaksi(), fetchRencana(), fetchTamu()]);
 });
 </script>
