@@ -226,7 +226,7 @@ onMounted(() => {
         <div 
           v-for="item in checklist" 
           :key="item.id" 
-          class="list-group-item d-flex justify-content-between align-items-center py-3 px-0 gap-3"
+          class="list-group-item d-flex justify-content-between align-items-center py-2 px-0 gap-3"
         >
           <div class="form-check d-flex align-items-center gap-2 flex-grow-1">
             <input 
@@ -264,7 +264,7 @@ onMounted(() => {
             <button 
               type="button" 
               class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0" 
-              style="width: 32px; height: 32px;"
+              style="width: 44px; height: 44px;"
               title="Hapus Tugas"
               :disabled="deletingId === item.id"
               @click="handleDelete(item)"
