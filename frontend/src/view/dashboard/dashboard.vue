@@ -90,10 +90,10 @@ const handleLogout = () => {
       />
 
       <!-- EMBED DYNAMIC CONTENT (ROUTER VIEW) -->
-      <main class="p-2 p-sm-3 p-md-4 flex-grow-1 main-content">
+      <main class="p-2 p-sm-3 p-md-4 flex-grow-1 main-content d-flex flex-column">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <component :is="Component" class="flex-grow-1 d-flex flex-column" />
           </transition>
         </router-view>
       </main>
@@ -141,18 +141,58 @@ const handleLogout = () => {
   overflow-x: hidden;
 }
 
-/* HP: padding konten lebih rapat + cegah horizontal scroll */
+/* HP: penuhkan area antara header & footer tanpa celah/jarak berlebih */
 @media (max-width: 575.98px) {
   .main-content {
-    padding: 0.5rem !important;
+    padding: 0 !important;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+
+  .main-content > * {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  /* Kartu utama halaman (rencana, transaksi, tamu, akun) memenuhi layar dari header hingga footer */
+  .main-content :deep(.card) {
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .main-content :deep(.card:only-child),
+  .main-content :deep(.account-card) {
+    min-height: 100%;
+    flex-grow: 1;
+  }
+
+  /* Padding dalam kartu di HP agar tetap rapi dan tidak mepet teks */
+  .main-content :deep(.card) {
+    padding: 1rem 0.85rem !important;
+  }
+
+  /* Khusus dashboard beranda (dash-content) dengan multi-card */
+  .main-content :deep(.dash-content) {
+    padding: 0.65rem 0.5rem 1rem 0.5rem !important;
+    flex-grow: 1;
+  }
+
+  .main-content :deep(.dash-content .card) {
+    border-radius: 1rem !important;
+    border: 1px solid #edf2f7 !important;
+    padding: 1rem !important;
+  }
+
+  .main-content :deep(.dash-content .stat-card) {
+    padding: 0.75rem !important;
   }
 
   .main-content h4 {
     font-size: 1.1rem;
-  }
-
-  .main-content .card {
-    border-radius: 1rem;
   }
 }
 </style>
